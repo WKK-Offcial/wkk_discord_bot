@@ -1,2 +1,5 @@
 # the_boi_redemption_arc
-back to the classic
+
+## Python version
+3.10.10
+

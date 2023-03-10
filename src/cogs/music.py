@@ -2,6 +2,7 @@ import discord
 from utils.YT_source import YTDLSource
 from discord.ext import commands
 from discord import app_commands
+import datetime
 
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -28,14 +29,17 @@ class Music(commands.Cog):
     @app_commands.command(name="yt")
     async def yt_play(self, interaction: discord.Interaction, url: str):
         """Plays from a url (almost anything youtube_dl supports)"""
-        await interaction.response.send_message(f'trying to play : {url}')
-        channel = interaction.user.voice.channel
-        await channel.connect()
-        player = await YTDLSource.from_url(url, loop=self.bot.loop)
-        channel.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+        guild = interaction.guild
+        if interaction.user.voice.channel:
+            channel = interaction.user.voice.channel
+            await channel.connect()
+        player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+        guild.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+        embed = discord.Embed(title='Boiiiii', color=0x00ff00, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed.add_field(name='Now Playing', value=f'{player.title}')
+        embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+        await interaction.response.send_message(embed=embed)
 
-
-        await interaction.response.send_message(f'Now playing: {player.title}')
 
     @commands.command()
     async def stream(self, ctx, *, url):

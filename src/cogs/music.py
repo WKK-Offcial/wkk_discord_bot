@@ -1,9 +1,10 @@
 import discord
 from utils.YT_source import YTDLSource
 from discord.ext import commands
+from discord import app_commands
 
 class Music(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @commands.command()
@@ -24,15 +25,23 @@ class Music(commands.Cog):
 
         await ctx.send(f'Now playing: {query}')
 
-    @commands.command()
-    async def yt(self, ctx, *, url):
+    @app_commands.command(name="yt")
+    async def yt_play(self, interaction: discord.Interaction, url: str):
         """Plays from a url (almost anything youtube_dl supports)"""
+        if interaction.voice_client is None:
+            if interaction.author.voice:
+                await interaction.author.voice.channel.connect()
+            else:
+                await interaction.send("You are not connected to a voice channel.")
+                raise commands.CommandError("Author not connected to a voice channel.")
+        elif interaction.voice_client.is_playing():
+            interaction.voice_client.stop()
 
-        async with ctx.typing():
+        async with interaction.typing():
             player = await YTDLSource.from_url(url, loop=self.bot.loop)
-            ctx.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+            interaction.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
 
-        await ctx.send(f'Now playing: {player.title}')
+        await interaction.response.send_message(f'Now playing: {player.title}')
 
     @commands.command()
     async def stream(self, ctx, *, url):
@@ -61,7 +70,7 @@ class Music(commands.Cog):
         await ctx.voice_client.disconnect()
 
     @play.before_invoke
-    @yt.before_invoke
+    #@yt.before_invoke
     @stream.before_invoke
     async def ensure_voice(self, ctx):
         if ctx.voice_client is None:

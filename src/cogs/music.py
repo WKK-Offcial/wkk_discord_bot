@@ -28,18 +28,12 @@ class Music(commands.Cog):
     @app_commands.command(name="yt")
     async def yt_play(self, interaction: discord.Interaction, url: str):
         """Plays from a url (almost anything youtube_dl supports)"""
-        if interaction.voice_client is None:
-            if interaction.author.voice:
-                await interaction.author.voice.channel.connect()
-            else:
-                await interaction.send("You are not connected to a voice channel.")
-                raise commands.CommandError("Author not connected to a voice channel.")
-        elif interaction.voice_client.is_playing():
-            interaction.voice_client.stop()
+        await interaction.response.send_message(f'trying to play : {url}')
+        channel = interaction.user.voice.channel
+        await channel.connect()
+        player = await YTDLSource.from_url(url, loop=self.bot.loop)
+        channel.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
 
-        async with interaction.typing():
-            player = await YTDLSource.from_url(url, loop=self.bot.loop)
-            interaction.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
 
         await interaction.response.send_message(f'Now playing: {player.title}')
 

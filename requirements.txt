@@ -19,4 +19,4 @@ websockets==10.4
 yarl==1.8.2
 yt-dlp==2023.3.4
 opuslib>=3.0.1
-dotenv>=1.0.0
+python-dotenv==1.0.0

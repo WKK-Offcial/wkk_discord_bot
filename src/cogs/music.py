@@ -12,15 +12,11 @@ class Music(commands.Cog):
         self.bot = bot
         self.queen = []
 
+
     def _play(self,client):
         if len(self.queen) > 0:
             self.queen.pop(0)
             client.voice_client.play(self.queen[0], after=lambda e: self._play(client))
-            # embed = discord.Embed(title='The Boi', color=0x00ff00, timestamp=datetime.datetime.now(datetime.timezone.utc))
-            # embed.add_field(name='queen', value=self.queen)
-            # embed.add_field(name='Now Playing', value=f'{self.queen[0].title}')
-            # embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
-        
 
     @app_commands.command(name="yt")
     async def yt_play(self, interaction: discord.Interaction, url: str):
@@ -34,9 +30,12 @@ class Music(commands.Cog):
         if not guild.voice_client.is_playing():
             guild.voice_client.play(self.queen[0], after=lambda e: self._play(guild))
             guild.voice_client.is_playing()
-            embed = discord.Embed(title='The Boi', color=0x00ff00, timestamp=datetime.datetime.now(datetime.timezone.utc))
-            embed.add_field(name='queen', value=self.queen)
-            embed.add_field(name='Now Playing', value=f'{self.queen[0].title}')
-            embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
-            await interaction.response.send_message(embed=embed)
-
+        current_queen = '\n-'.join(str(element.title) for element in self.queen)
+        embed = discord.Embed(title='The Boi',
+                            color=0x00ff00,
+                            timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed.add_field(name='queen', value=current_queen)
+        embed.add_field(name='Now Playing', value=f'{self.queen[0].title}')
+        embed.set_footer(text='2137',
+                        icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+        await interaction.response.send_message(embed=embed)

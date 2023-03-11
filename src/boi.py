@@ -6,12 +6,11 @@ from discord.ext import commands
 from discord.ext.commands import Greedy, Context
 from cogs.music import Music
 from dotenv import load_dotenv
-
+import logging
 
 load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True
-
 
 bot = commands.Bot(
     command_prefix=commands.when_mentioned_or("/"),
@@ -63,6 +62,7 @@ async def sync(ctx: Context,
 
 
 async def main():
+    discord.utils.setup_logging(level=logging.DEBUG, root=False)
     async with bot:
         await bot.add_cog(Music(bot))
         await bot.start(os.getenv('BOT_TOKEN'))

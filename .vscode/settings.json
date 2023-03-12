@@ -1,0 +1,5 @@
+{
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": "file:///e%3A/Projects/the_boi_redemption_arc/.github/workflows/deploy.yml"
+    }
+}

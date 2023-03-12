@@ -1,13 +1,14 @@
 import asyncio
 from typing import Literal, Optional
 import os
+import logging
+from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from discord.ext.commands import Greedy, Context
-from cogs.music import Music
-from dotenv import load_dotenv
-import logging
 import static_ffmpeg
+from cogs.music import Music
+
 
 # Load env variables from .env file
 load_dotenv()
@@ -19,7 +20,7 @@ if os.name == 'nt':
 elif os.name == 'posix':
     discord.opus.load_opus('libopus.so.0')
 if not discord.opus.is_loaded():
-    raise Exception('Opus failed to load!')
+    raise RuntimeError('Opus failed to load!')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -32,6 +33,7 @@ bot = commands.Bot(
 
 @bot.event
 async def on_ready():
+    """Event that ocuurence one time when bot is ready to work"""
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------')
 
@@ -41,7 +43,7 @@ async def on_ready():
 async def sync(ctx: Context,
             guilds: Greedy[discord.Object],
             spec: Optional[Literal["~", "*", "^"]] = None) -> None:
-
+    """This command sync slash commands with discord"""
     if not guilds:
         if spec == "~":
             synced = await ctx.bot.tree.sync(guild=ctx.guild)
@@ -55,8 +57,9 @@ async def sync(ctx: Context,
         else:
             synced = await ctx.bot.tree.sync()
 
+        is_spec = 'globally' if spec is None else 'to the current guild.'
         await ctx.send(
-            f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}"
+            f"Synced {len(synced)} commands {is_spec}"
         )
         return
 
@@ -73,6 +76,7 @@ async def sync(ctx: Context,
 
 
 async def main():
+    """Main boot start function"""
     discord.utils.setup_logging(level=logging.DEBUG, root=False)
     async with bot:
         await bot.add_cog(Music(bot))

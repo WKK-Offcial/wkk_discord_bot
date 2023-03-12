@@ -45,10 +45,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v2
+      - uses: docker/build-push-action@v3
         with:
           context: .
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+          tags: ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest

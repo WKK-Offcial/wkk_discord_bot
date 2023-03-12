@@ -7,29 +7,32 @@ import asyncio
 
 class Music(commands.Cog):
   """
-  Class for music commands.
+  Class for music commands. Queue is a dictionary {guild_id:queue}
   """
   def __init__(self, bot: commands.Bot) -> None:
     self.bot = bot
-    self.queue = []
+    self.queue = {}
 
 
   def _play(self, interaction):
-    if len(self.queue) > 0:
-      # Play next in queue
-      embed = self._prepare_embed()
+    guild_queue = self.queue[interaction.guild_id]
+    if len(guild_queue) > 0:
+      # Send updated embed
+      embed = self._prepare_embed(guild_queue)
       coro = interaction.channel.send(content=None, embed=embed)
       asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-      play_next = self.queue.pop(0)
-      interaction.guild.voice_client.play(play_next, after=lambda e: self._play(interaction))
 
-  def _prepare_embed(self):
-    current_queue = '\n-'.join(str(element.title) for element in self.queue)
+      # Play next in queue
+      next_audio_source = guild_queue.pop(0)
+      interaction.guild.voice_client.play(next_audio_source, after=lambda e: self._play(interaction))
+
+  def _prepare_embed(self, queue):
+    current_queue = '\n-'.join(str(element.title) for element in queue)
     embed = discord.Embed(title='The Boi',
                           color=0x00ff00,
                           timestamp=datetime.datetime.now(datetime.timezone.utc))
     embed.add_field(name='queue', value=current_queue)
-    embed.add_field(name='Now Playing', value=f'{self.queue[0].title}')
+    embed.add_field(name='Now Playing', value=f'{queue[0].title}')
     embed.set_footer(text='2137',
                     icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
     return embed
@@ -45,8 +48,10 @@ class Music(commands.Cog):
       await channel.connect()
 
     try:
-      player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-      self.queue.append(player)
+      audio_source = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+      guild_queue = self.queue.get(guild.id, [])
+      guild_queue.append(audio_source)
+      self.queue[guild.id] = guild_queue
     except:
       await interaction.edit_original_response(content=f"Video not available.")
       return

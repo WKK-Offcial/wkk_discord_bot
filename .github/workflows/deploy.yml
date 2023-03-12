@@ -51,4 +51,4 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: wkk-offcial/boi_redemption_arc:latest
+          tags: ghcr.io/WKK-Offcial/boi_redemption_arc:latest

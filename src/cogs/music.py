@@ -44,8 +44,12 @@ class Music(commands.Cog):
         if not discord.utils.get(self.bot.voice_clients, guild=guild):
             await channel.connect()
 
-        player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-        self.queue.append(player)
+        try:
+            player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+            self.queue.append(player)
+        except:
+            await interaction.edit_original_response(content=f"Video not available.")
+            return
 
         if not guild.voice_client.is_playing():
             await interaction.edit_original_response(content=f"Now playing {url}.")

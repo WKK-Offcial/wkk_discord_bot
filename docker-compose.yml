@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  wkk-bot:
+    build: .
+    container_name: wkk-bot
+    volumes:
+      - .:/usr/wkk-bot
+    restart: always

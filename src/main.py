@@ -7,8 +7,20 @@ from discord.ext.commands import Greedy, Context
 from cogs.music import Music
 from dotenv import load_dotenv
 import logging
+import static_ffmpeg
 
+# Load env variables from .env file
 load_dotenv()
+# Load static ffmpeg library
+static_ffmpeg.add_paths()
+# Load opus library - depends on OS
+if os.name == 'nt':
+    discord.opus._load_default()
+elif os.name == 'posix':
+    discord.opus.load_opus('libopus.so.0')
+if not discord.opus.is_loaded():
+    raise Exception('Opus failed to load!')
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -17,7 +29,6 @@ bot = commands.Bot(
     description='The Boi is back',
     intents=intents,
 )
-
 
 @bot.event
 async def on_ready():
@@ -28,7 +39,7 @@ async def on_ready():
 @bot.command()
 @commands.guild_only()
 async def sync(ctx: Context,
-            guilds: Greedy[discord.Object], 
+            guilds: Greedy[discord.Object],
             spec: Optional[Literal["~", "*", "^"]] = None) -> None:
 
     if not guilds:

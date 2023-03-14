@@ -62,15 +62,18 @@ jobs:
         uses: actions/checkout@v3
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2.6.1
+        env:
+          DISCORD_TOKEN: ${{secrets.BOI_DISCORD_TOKEN}}
+          BOI_HOSTNAME: ${{secrets.BOI_HOSTNAME}}
         with:
           key: ${{secrets.BOI_PRIVATE_KEY}}
           playbook: deploy_playbook.yml
           directory: ./.github/workflows
           inventory: |
             [all]
-            ${{secrets.BOI_HOSTNAME}}
+            $BOI_HOSTNAME
           options: |
-            --extra-vars BOT_TOKEN={{secrets.BOI_DISCORD_TOKEN}}
+            --extra-vars BOT_TOKEN=$DISCORD_TOKEN
     # - name: Deploy Image on EC2
     #   uses: appleboy/ssh-action@v0.1.8
     #   env:

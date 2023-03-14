@@ -58,16 +58,28 @@ jobs:
     needs: docker_build
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy Image on EC2
-      uses: appleboy/ssh-action@v0.1.8
-      env:
-        DISCORD_TOKEN: ${{secrets.BOI_DISCORD_TOKEN}}
-      with:
-        host: ${{secrets.BOI_HOSTNAME}}
-        username: ec2-user
-        key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN
-        script: |
-          docker pull ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
-          docker ps -q --filter "name=wkk_boi" | grep -q . && docker stop wkk_boi && docker rm -fv wkk_boi
-          docker run --detach --env BOT_TOKEN=$DISCORD_TOKEN --name wkk_boi ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+      - name: Chcekout Repository
+        uses: actions/checkout@v3
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2.6.1
+        with:
+          key: ${{secrets.BOI_PRIVATE_KEY}}
+          playbook: deploy_playbook.yml
+          inventory: |
+            [all]
+            ${{secrets.BOI_HOSTNAME}}
+          options: |
+            --extra-vars BOT_TOKEN={{secrets.BOI_DISCORD_TOKEN}}
+    # - name: Deploy Image on EC2
+    #   uses: appleboy/ssh-action@v0.1.8
+    #   env:
+    #     DISCORD_TOKEN: ${{secrets.BOI_DISCORD_TOKEN}}
+    #   with:
+    #     host: ${{secrets.BOI_HOSTNAME}}
+    #     username: ec2-user
+    #     key: ${{secrets.BOI_PRIVATE_KEY}}
+    #     envs: DISCORD_TOKEN
+    #     script: |
+    #       docker pull ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+    #       docker ps -q --filter "name=wkk_boi" | grep -q . && docker stop wkk_boi && docker rm -fv wkk_boi
+    #       docker run --detach --env BOT_TOKEN=$DISCORD_TOKEN --name wkk_boi ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest

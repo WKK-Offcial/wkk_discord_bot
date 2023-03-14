@@ -1,0 +1,31 @@
+---
+- name: Deploy The Boi
+  hosts: all
+  remote_user: ec2-user
+
+  tasks:
+    - name: 'Set facts'
+      ansible.builtin.set_fact:
+        boi_image: ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+        boi_name: wkk_boi
+        boi_token: "{{ BOT_TOKEN }}"
+
+    - name: 'Stop Boi'
+      community.docker.docker_container:
+        name: "{{ boi_name }}"
+        state: stopped
+
+    - name: 'Remove Boi'
+      community.docker.docker_container:
+        name: "{{ boi_name }}"
+        state: absent
+
+    - name: 'Start new goi'
+      community.docker.docker_container:
+        name: "{{ boi_name }}"
+        image: "{{ boi_image }}"
+        env:
+          BOT_TOKEN: "{{ boi_token }}"
+        comparisons:
+          image: ignore
+          env: strict

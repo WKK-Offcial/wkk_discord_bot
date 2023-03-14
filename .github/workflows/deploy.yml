@@ -65,6 +65,7 @@ jobs:
         with:
           key: ${{secrets.BOI_PRIVATE_KEY}}
           playbook: deploy_playbook.yml
+          directory: ./.github/workflows
           inventory: |
             [all]
             ${{secrets.BOI_HOSTNAME}}

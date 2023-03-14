@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Greedy, Context
 import static_ffmpeg
-from cogs.music import Music
+from cogs.audio_player import AudioPlayer
 
 
 # Load env variables from .env file
@@ -79,7 +79,7 @@ async def main():
   """Main boot start function"""
   discord.utils.setup_logging(level=logging.DEBUG, root=False)
   async with bot:
-    await bot.add_cog(Music(bot))
+    await bot.add_cog(AudioPlayer(bot))
     await bot.start(os.getenv('BOT_TOKEN'))
 
 

@@ -98,7 +98,7 @@ async def sync(ctx: Context,
 
 async def main():
   """Main boot start function"""
-  discord.utils.setup_logging(level=logging.DEBUG, root=False)
+  discord.utils.setup_logging(level=logging.WARNING, root=False)
   async with bot:
     await bot.add_cog(AudioPlayer(bot))
     await bot.start(os.getenv('BOT_TOKEN'))

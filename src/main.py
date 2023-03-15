@@ -25,11 +25,32 @@ if not discord.opus.is_loaded():
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(
-  command_prefix=commands.when_mentioned_or("/"),
-  description='The Boi is back',
-  intents=intents,
-)
+class BoiBot(commands.Bot):
+  """
+  Class inherited from Bot in order to add queues to it
+  """
+  def __init__(self):
+    super().__init__( command_prefix=commands.when_mentioned_or("/"),
+                      description='The Boi is back',
+                      intents=intents,)
+    self._queues:dict[int, list] = {}
+
+  def get_queue(self, guild_id:int):
+    """
+    Returns queue for specified guild
+    """
+    queue = self._queues.get(guild_id)
+    if not queue:
+      self._queues[guild_id] = queue = []
+    return queue
+
+  def remove_queue(self, guild_id:int):
+    """
+    Removes queue for specified guild
+    """
+    return self._queues.pop(guild_id, None)
+
+bot = BoiBot()
 
 @bot.event
 async def on_ready():

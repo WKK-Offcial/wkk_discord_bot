@@ -31,10 +31,10 @@ class YoutubeSource(discord.PCMVolumeTransformer):
   def __init__(self, source, *, data, volume=0.5):
     super().__init__(source, volume)
 
-    self.data = data
-
-    self.title = data.get('title')
-    self.url = data.get('url')
+    self.data:dict[str, ] = data
+    self.title:str = data.get('title')
+    self.url:str = data.get('url')
+    self.thumbnail = data.get('thumbnail')
 
   @classmethod
   async def from_url(cls, url, *, loop=None, stream=False):

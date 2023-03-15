@@ -44,7 +44,8 @@ class AudioPlayer(commands.Cog):
 
       # Play next in queue
       next_audio_source = guild_queue[0]
-      interaction.guild.voice_client.play(next_audio_source, after=lambda e: self._play_next(interaction))
+      voice_client:discord.VoiceClient = interaction.guild.voice_client
+      voice_client.play(next_audio_source, after=lambda e: self._play_next(interaction))
     else:
       if view:
         view.remove_embed()
@@ -135,10 +136,10 @@ class AudioControls(discord.ui.View):
     When skip button is pressed skip current audio
     """
     button.is_persistent() # Useless - pylint about button not being used otherwise
-    voice_client = interaction.guild.voice_client
+    voice_client:discord.VoiceClient = interaction.guild.voice_client
     if voice_client and voice_client.is_playing():
       voice_client.stop()
-      await interaction.response.send_message('Skipped audio', delete_after=1)
+      await interaction.response.defer()
     else:
       await interaction.response.send_message("Nothing is playing right now", delete_after=1)
 
@@ -155,7 +156,7 @@ class AudioControls(discord.ui.View):
     if  guild.voice_client and guild.voice_client.is_playing():
       guild.voice_client.stop()
       await guild.voice_client.disconnect()
-      await interaction.response.send_message('Stopped player', delete_after=1)
+      await interaction.response.defer()
     else:
       await interaction.response.send_message("Nothing is playing right now", delete_after=1)
 
@@ -163,3 +164,36 @@ class AudioControls(discord.ui.View):
     self.stop()
     self.active = False
 
+  @discord.ui.button(label='Vol+', style=discord.ButtonStyle.gray)
+  async def volume_up_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    """
+    Volume up by 10%
+    """
+    button.is_persistent() # Useless - pylint about button not being used otherwise
+    voice_client:discord.VoiceClient = interaction.guild.voice_client
+    if voice_client and voice_client.is_playing():
+      new_volume = min(voice_client.source.volume + 0.1, 1.0)
+      voice_client.source.volume = new_volume
+      if new_volume > 0.98:
+        button.disabled = True
+      self.volume_down_button.disabled = False
+      await interaction.response.edit_message(view=self)
+    else:
+      await interaction.response.defer()
+
+
+  @discord.ui.button(label='Vol-', style=discord.ButtonStyle.gray)
+  async def volume_down_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    """
+    Volume down by 10%
+    """
+    voice_client:discord.VoiceClient = interaction.guild.voice_client
+    if voice_client and voice_client.is_playing():
+      new_volume = max(voice_client.source.volume - 0.1, 0.0)
+      voice_client.source.volume = new_volume
+      if new_volume < 0.02:
+        button.disabled = True
+      self.volume_up_button.disabled = False
+      await interaction.response.edit_message(view=self)
+    else:
+      await interaction.response.defer()

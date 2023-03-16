@@ -92,7 +92,7 @@ class AudioControls(discord.ui.View):
   View class for controlling audio player through view
   """
   def __init__(self, bot: BoiBot, guild_id:int):
-    super().__init__()
+    super().__init__(timeout=None)
     self.bot:BoiBot = bot
     self.guild_id:int = guild_id
     self.embed_handle:discord.Message = None

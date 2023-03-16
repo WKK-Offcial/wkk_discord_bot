@@ -70,4 +70,4 @@ jobs:
         script: |
           docker pull ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
           docker ps -q --filter "name=wkk_boi" | grep -q . && docker stop wkk_boi && docker rm -fv wkk_boi
-          docker run --detach --env BOT_TOKEN=$DISCORD_TOKEN --name wkk_boi ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+          docker run --restart on-failure --detach --env BOT_TOKEN=$DISCORD_TOKEN --name wkk_boi ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest

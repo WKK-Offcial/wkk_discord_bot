@@ -18,7 +18,10 @@ class BoiBot(commands.Bot):
     self._queues:dict[str, list] = {}
     self._soundboards:dict[str, list] = {}
     self.dropbox = DropboxManager()
-    self.dropbox.download_all()
+    try:
+      self.dropbox.download_all()
+    except Exception as e:
+      print(e)
 
     # Load sounboards stored in cloud
     for root, dirs, files in os.walk('./cache/soundboards/'):

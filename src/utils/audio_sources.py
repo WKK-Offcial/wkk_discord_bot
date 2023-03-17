@@ -1,4 +1,5 @@
 import asyncio
+import os
 import yt_dlp
 import discord
 
@@ -24,14 +25,13 @@ ffmpeg_options = {
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
 
-class YoutubeSource(discord.PCMVolumeTransformer):
+class AudioSource(discord.PCMVolumeTransformer):
   """
   Class responsible for obtaining stream source from youtube
   """
-  def __init__(self, source, *, data, volume=0.5):
+  def __init__(self, source:str, *, data:dict[str, ], volume=0.5):
     super().__init__(source, volume)
 
-    self.data:dict[str, ] = data
     self.title:str = data.get('title')
     self.url:str = data.get('url')
     self.thumbnail = data.get('thumbnail')
@@ -50,3 +50,16 @@ class YoutubeSource(discord.PCMVolumeTransformer):
 
     filename = data['url'] if stream else ytdl.prepare_filename(data)
     return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+
+  @classmethod
+  def from_file(cls, file_name, *, loop=None):
+    """
+    Get audio source from search phrase or direct video url
+    """
+    loop = loop or asyncio.get_event_loop()
+    data = {
+      'title':os.path.basename(file_name),
+      'url':'placeholder_url',
+      'thumbnnail':'https://media.tenor.com/XWSuG5fuzL4AAAAC/pepe-peepo.gif',
+    }
+    return cls(discord.FFmpegPCMAudio(file_name), data=data)

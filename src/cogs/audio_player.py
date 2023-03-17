@@ -1,12 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+import logging
 import datetime
 import asyncio
+from io import BytesIO
 import discord
 import yt_dlp
 from discord.ext import commands
 from discord import app_commands
-from utils.youtube_audio import YoutubeSource
+from utils.audio_sources import AudioSource
 
 if TYPE_CHECKING:
   from main import BoiBot
@@ -20,7 +22,7 @@ class AudioPlayer(commands.Cog):
     self.bot:BoiBot = bot
     self.views:dict[int, AudioControls] = {}
 
-  def _add_to_queue(self, guild_id:int, audio_source:YoutubeSource):
+  def _add_to_queue(self, guild_id:int, audio_source:AudioSource):
     """
     Adds audio source to guild's queue
     """
@@ -51,13 +53,12 @@ class AudioPlayer(commands.Cog):
         view.remove_embed()
         self.views.pop(interaction.guild_id)
 
-
-  @app_commands.command(name="yt")
-  async def play_yt(self, interaction: discord.Interaction, search_phrase: str):
+  @app_commands.command(name="play")
+  async def play(self, interaction: discord.Interaction, input_text: str):
     """
-    Plays from a url (almost anything youtube_dl supports)
+    For soundboard type audio ID from list\nFor youtube type url or search phrase
     """
-    await interaction.response.send_message(f"Looking for {search_phrase}...")
+    await interaction.response.send_message(f"Looking for {input_text}...")
     guild = interaction.guild
     voice_channel = interaction.user.voice.channel
     text_channel = interaction.channel
@@ -66,9 +67,17 @@ class AudioPlayer(commands.Cog):
       await voice_channel.connect()
 
     try:
-      audio_source = await YoutubeSource.from_url(search_phrase, loop=self.bot.loop, stream=True)
-      guild_queue = self._add_to_queue(guild.id, audio_source)
+      # Check if user wants to play audio from soundboard or from youtube
+      if input_text.isnumeric():
+        guild_soundboard = self.bot.get_soundboard(guild.id)
+        file_name = guild_soundboard[int(input_text) - 1]
+        file_path = f'./cache/soundboards/{str(guild.id)}/{file_name}'
+        audio_source = AudioSource.from_file(file_path, loop=self.bot.loop)
+      else:
+        audio_source = await AudioSource.from_url(input_text, loop=self.bot.loop, stream=True)
 
+      # Add to queue and start playback if  not yet playing
+      guild_queue = self._add_to_queue(guild.id, audio_source)
       if not guild.voice_client.is_playing():
         guild.voice_client.play(audio_source, after=lambda e: self._play_next(interaction))
 
@@ -81,10 +90,51 @@ class AudioPlayer(commands.Cog):
         self.views[guild.id] = view
       await view.pull_down_embed(text_channel, guild_queue)
 
+    except SyntaxError:
+      await interaction.edit_original_response(content='No argument passed!')
+      logging.error(SyntaxError.msg)
+    except IndexError:
+      await interaction.edit_original_response(content='Index out of range!')
+      logging.error(IndexError)
     except TypeError:
       await interaction.edit_original_response(content="Request sent too fast!")
+      logging.error(TypeError)
     except yt_dlp.utils.ExtractorError:
-      await interaction.edit_original_response(content=f"\"{search_phrase}\" not available.")
+      logging.error(yt_dlp.utils.ExtractorError.msg)
+      await interaction.edit_original_response(content=f"\"{input_text}\" not available.")
+
+  @app_commands.command(name="soundboard")
+  async def list_soundboard(self, interaction: discord.Interaction):
+    """
+    Lists all audio files uploaded to soundboard
+    """
+    await interaction.response.send_message("Preparing list...")
+    guild_soundboard = self.bot.get_soundboard(interaction.guild_id)
+    message_content = "SOUNDBOARD\n"
+    i = 0
+    for entry in guild_soundboard:
+      i+=1
+      message_content += f'{i}. {entry}\n'
+
+    file = discord.File(fp=BytesIO(message_content.encode("utf8")), filename="soundboard.cpp")
+    await interaction.edit_original_response(content='', attachments=[file])
+
+  @app_commands.command(name="upload")
+  async def upload_audio(self, interaction: discord.Interaction, mp3_file: discord.Attachment):
+    """
+    Upload audio file to soundboard
+    """
+    await interaction.response.send_message("Processing file...")
+
+    if not mp3_file.filename.endswith(".mp3"):
+      await interaction.edit_original_response(content='Audio files must have .mp3 format')
+      return
+
+    save_location = f"./cache/soundboards/{interaction.guild_id}/{mp3_file.filename}"
+    await mp3_file.save(save_location)
+    self.bot.dropbox.upload_file(save_location, interaction.guild_id)
+    self.bot.add_to_soundboard(interaction.guild_id, mp3_file.filename)
+    await interaction.edit_original_response(content=f'Successfully uploaded {mp3_file.filename}')
 
 
 class AudioControls(discord.ui.View):
@@ -172,9 +222,9 @@ class AudioControls(discord.ui.View):
     button.is_persistent() # Useless - pylint about button not being used otherwise
     voice_client:discord.VoiceClient = interaction.guild.voice_client
     if voice_client and voice_client.is_playing():
-      new_volume = min(voice_client.source.volume + 0.1, 1.0)
+      new_volume = round(min(voice_client.source.volume + 0.1, 1.0),1)
       voice_client.source.volume = new_volume
-      if new_volume > 0.98:
+      if new_volume > 0.9:
         button.disabled = True
       self.volume_down_button.disabled = False
       await interaction.response.edit_message(view=self)
@@ -189,9 +239,9 @@ class AudioControls(discord.ui.View):
     """
     voice_client:discord.VoiceClient = interaction.guild.voice_client
     if voice_client and voice_client.is_playing():
-      new_volume = max(voice_client.source.volume - 0.1, 0.0)
+      new_volume = round(max(voice_client.source.volume - 0.1, 0.0),1)
       voice_client.source.volume = new_volume
-      if new_volume < 0.02:
+      if new_volume < 0.1:
         button.disabled = True
       self.volume_up_button.disabled = False
       await interaction.response.edit_message(view=self)

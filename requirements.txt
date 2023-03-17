@@ -20,3 +20,4 @@ yarl==1.8.2
 yt-dlp==2023.3.4
 python-dotenv==1.0.0
 static-ffmpeg==2.5
+dropbox==11.36.0

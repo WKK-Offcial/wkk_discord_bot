@@ -28,6 +28,9 @@ class BoiBot(commands.Bot):
         guild_id = os.path.basename(root)
         self._soundboards[str(guild_id)].append(file_name)
 
+    for soundboard in self._soundboards.values():
+      soundboard.sort()
+
   def get_queue(self, guild_id:int):
     """
     Returns queue for specified guild

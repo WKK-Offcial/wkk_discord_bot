@@ -60,8 +60,12 @@ class AudioPlayer(commands.Cog):
     """
     await interaction.response.send_message(f"Looking for {input_text}...")
     guild = interaction.guild
-    voice_channel = interaction.user.voice.channel
     text_channel = interaction.channel
+    if interaction.user.voice:
+      voice_channel = interaction.user.voice.channel
+    else:
+      await interaction.edit_original_response(content="You're not in voice channel")
+      return
 
     if not discord.utils.get(self.bot.voice_clients, guild=guild):
       await voice_channel.connect()

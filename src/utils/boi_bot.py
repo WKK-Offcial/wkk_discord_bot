@@ -1,7 +1,7 @@
 import os
 import bisect
-from discord.ext import commands
 from discord import Intents
+from discord.ext import commands
 from .dropbox_storage import DropboxManager
 
 class BoiBot(commands.Bot):

@@ -69,7 +69,7 @@ jobs:
         host: ${{secrets.BOI_HOSTNAME}}
         username: ec2-user
         key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN
+        envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN
         script: |
           docker pull ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
           docker ps -q --filter "name=wkk_boi" | grep -q . && docker stop wkk_boi && docker rm -fv wkk_boi

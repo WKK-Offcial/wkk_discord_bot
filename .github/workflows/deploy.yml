@@ -81,7 +81,7 @@ jobs:
           -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY \
           -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET \
           -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN \
-          -v ./cache/soundboard:/home/ec2-user/soundboard \
+          -v /home/ec2-user/soundboard:./cache/soundboard \
           --name $DOCKER_BOI_NAME \
           $DOCKER_BOI_IMAGE
 

@@ -72,16 +72,17 @@ jobs:
         username: ec2-user
         key: ${{secrets.BOI_PRIVATE_KEY}}
         envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME
+        script_stop: true
         script: |
           docker pull $DOCKER_BOI_IMAGE
-          docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME
+          docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME || true
           docker run --restart on-failure \
           --detach \
           -e BOT_TOKEN=$DISCORD_TOKEN \
           -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY \
           -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET \
           -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN \
-          -v /home/ec2-user/soundboard:/wkk-bot/cache/soundboard \
+          -v /home/ec2-user/soundboards:/wkk-bot/cache/soundboards \
           --name $DOCKER_BOI_NAME \
           $DOCKER_BOI_IMAGE
 

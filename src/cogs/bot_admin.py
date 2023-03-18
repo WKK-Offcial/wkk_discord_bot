@@ -9,6 +9,7 @@ from discord.ext.commands import Greedy, Context
 if TYPE_CHECKING:
   from main import BoiBot
 
+
 class BotAdmin(commands.Cog):
   """
   Class used for controlling the bot as admin
@@ -17,15 +18,8 @@ class BotAdmin(commands.Cog):
     super().__init__()
     self.bot:BoiBot = bot
 
-    # Implement meta functions
-    @self.bot.event
-    async def on_ready():
-      """
-      Event that ocuurence one time when bot is ready to work
-      """
-      logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
 
-
+  # Implement meta functions
     @self.bot.command()
     @commands.guild_only()
     async def sync(ctx: Context,

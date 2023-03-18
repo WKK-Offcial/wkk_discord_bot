@@ -1,5 +1,6 @@
 import os
 import bisect
+import wavelink
 from discord import Intents
 from discord.ext import commands
 from .dropbox_storage import DropboxManager
@@ -15,13 +16,9 @@ class BoiBot(commands.Bot):
                       description='The Boi is back',
                       intents=intents,)
 
-    self._queues:dict[str, list] = {}
     self._soundboards:dict[str, list] = {}
     self.dropbox = DropboxManager()
-    try:
-      self.dropbox.download_all()
-    except Exception as e:
-      print(e)
+    self.dropbox.download_all()
 
     # Load sounboards stored in cloud
     for root, dirs, files in os.walk('./cache/soundboards/'):
@@ -34,20 +31,14 @@ class BoiBot(commands.Bot):
     for soundboard in self._soundboards.values():
       soundboard.sort()
 
-  def get_queue(self, guild_id:int):
-    """
-    Returns queue for specified guild
-    """
-    queue = self._queues.get(str(guild_id))
-    if not queue:
-      self._queues[str(guild_id)] = queue = []
-    return queue
 
-  def remove_queue(self, guild_id:int):
+  async def setup_hook(self) -> None:
     """
-    Removes queue for specified guild
+    Wavelink setup
     """
-    return self._queues.pop(str(guild_id), None)
+    node: wavelink.Node = wavelink.Node(uri=os.getenv('WAVELINK_URL') + ':' + os.getenv('WAVELINK_PORT'),
+                                        password=os.getenv('WAVELINK_PASSWORD'))
+    await wavelink.NodePool.connect(client=self, nodes=[node])
 
   def get_soundboard(self, guild_id:int):
     """

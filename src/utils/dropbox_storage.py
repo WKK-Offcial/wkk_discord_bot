@@ -97,6 +97,9 @@ class DropboxManager():
     """
     Download everything in storage
     """
-    folders = self.list_folders('')
-    for folder in folders:
-      self.download_files_from_folder(folder)
+    try:
+      folders = self.list_folders('')
+      for folder in folders:
+        self.download_files_from_folder(folder)
+    except ApiError:
+      logging.error(ApiError)

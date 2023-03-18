@@ -9,6 +9,8 @@ import yt_dlp
 from discord.ext import commands
 from discord import app_commands
 from utils.audio_sources import AudioSource
+import random
+from time import sleep
 
 if TYPE_CHECKING:
   from main import BoiBot
@@ -29,6 +31,30 @@ class AudioPlayer(commands.Cog):
     guild_queue = self.bot.get_queue(guild_id)
     guild_queue.append(audio_source)
     return guild_queue
+
+  def _play_next_sim(self, interaction:discord.Interaction):
+      """
+      Callback function used for players to play next audio source in queue
+      """
+      sleep(random.randint(20,300))
+      view = self.views.get(interaction.guild_id)
+      guild_queue = self.bot.get_queue(interaction.guild_id)
+      if guild_queue:
+        guild_queue.pop(0)
+
+      if guild_queue and len(guild_queue) > 0:
+        # Update embed
+        coro = view.pull_down_embed(interaction.channel, guild_queue)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
+        # Play next in queue
+        next_audio_source = guild_queue[0]
+        voice_client:discord.VoiceClient = interaction.guild.voice_client
+        voice_client.play(next_audio_source, after=lambda e: self._play_next(interaction))
+      else:
+        if view:
+          view.remove_embed()
+          self.views.pop(interaction.guild_id)
 
   def _play_next(self, interaction:discord.Interaction):
     """
@@ -80,7 +106,7 @@ class AudioPlayer(commands.Cog):
       else:
         audio_source = await AudioSource.from_url(input_text, loop=self.bot.loop, stream=True)
 
-      # Add to queue and start playback if  not yet playing
+      # Add to queue and start playback if not yet playing
       guild_queue = self._add_to_queue(guild.id, audio_source)
       if not guild.voice_client.is_playing():
         guild.voice_client.play(audio_source, after=lambda e: self._play_next(interaction))
@@ -106,6 +132,52 @@ class AudioPlayer(commands.Cog):
     except yt_dlp.utils.ExtractorError:
       logging.error(yt_dlp.utils.ExtractorError.msg)
       await interaction.edit_original_response(content=f"\"{input_text}\" not available.")
+
+
+
+  @app_commands.command(name="sim")
+  async def simulate(self, interaction: discord.Interaction, input_text: str):
+    await interaction.response.send_message(f"Looking for {input_text}...")
+    guild = interaction.guild
+    text_channel = interaction.channel
+    if interaction.user.voice:
+      voice_channel = interaction.user.voice.channel
+    else:
+      await interaction.edit_original_response(content="You're not in voice channel")
+      return
+
+    if not discord.utils.get(self.bot.voice_clients, guild=guild):
+      await voice_channel.connect()
+    try:
+      guild_soundboard = self.bot.get_soundboard(guild.id)
+      personal_list = [person for person in guild_soundboard if person.startswith(input_text)]
+      for _ in range(random.randit(5,15)):
+        file_path = f'./cache/soundboards/{str(guild.id)}/{random.choice(personal_list)}'
+        audio_source = AudioSource.from_file(file_path, loop=self.bot.loop)
+        guild_queue = self._add_to_queue(guild.id, audio_source)
+      if not guild.voice_client.is_playing():
+        guild.voice_client.play(audio_source, after=lambda e: self._play_next_sim(interaction))
+
+        await interaction.edit_original_response(content=f"Found \"{audio_source.title}\".")
+        # Get/create view with audio controls
+        view = self.views.get(guild.id)
+        if not view or not view.active:
+          view = AudioControls(self.bot, guild.id)
+          self.views[guild.id] = view
+      await view.pull_down_embed(text_channel, guild_queue)
+    except SyntaxError:
+      await interaction.edit_original_response(content='No argument passed!')
+      logging.error(SyntaxError.msg)
+    except IndexError:
+      await interaction.edit_original_response(content='Index out of range!')
+      logging.error(IndexError)
+    except TypeError:
+      await interaction.edit_original_response(content="Request sent too fast!")
+      logging.error(TypeError)
+    except yt_dlp.utils.ExtractorError:
+      logging.error(yt_dlp.utils.ExtractorError.msg)
+      await interaction.edit_original_response(content=f"\"{input_text}\" not available.")
+
 
   @app_commands.command(name="soundboard")
   async def list_soundboard(self, interaction: discord.Interaction):

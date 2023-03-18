@@ -1,0 +1,77 @@
+name: Testing Bot Run
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git branch or other ref (required)
+
+jobs:
+  docker_build:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: "ghcr.io/wkk-offcial/boi_redemption_arc:${{ github.event.inputs.git_ref }}"
+
+  deploy:
+      name: Deploy test bot to EC2
+      needs: docker_build
+      runs-on: ubuntu-latest
+      steps:
+      - name: Deploy Image on EC2
+        uses: appleboy/ssh-action@v0.1.8
+        env:
+          DISCORD_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DOCKER_BOI_IMAGE_TEST: "ghcr.io/wkk-offcial/boi_redemption_arc:${{ github.event.inputs.git_ref }}"
+          DOCKER_BOI_TEST_NAME: "test_boi"
+        with:
+          host: ${{secrets.BOI_HOSTNAME}}
+          username: ec2-user
+          key: ${{secrets.BOI_PRIVATE_KEY}}
+          envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE_TEST, DOCKER_BOI_TEST_NAME
+          script: |
+            docker pull $DOCKER_BOI_IMAGE_TEST
+            docker run --restart on-failure --detach -e BOT_TOKEN=$DISCORD_TOKEN -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN --name $DOCKER_BOI_TEST_NAME $DOCKER_BOI_IMAGE_TEST
+
+  destroy:
+      name: Stop test Boi
+      needs: deploy
+      runs-on: ubuntu-latest
+      environment: testing
+      steps:
+      - name: Remove running container from EC2
+        uses: appleboy/ssh-action@v0.1.8
+        env:
+          DOCKER_BOI_TEST_NAME: "test_boi"
+        with:
+          host: ${{secrets.BOI_HOSTNAME}}
+          username: ec2-user
+          key: ${{secrets.BOI_PRIVATE_KEY}}
+          envs:  DOCKER_BOI_IMAGE_TEST, DOCKER_BOI_TEST_NAME
+          script: |
+            docker stop $DOCKER_BOI_TEST_NAME && docker rm -fv $DOCKER_BOI_TEST_NAME

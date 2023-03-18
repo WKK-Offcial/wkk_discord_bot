@@ -51,7 +51,7 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+          tags: ghcr.io/wkk-offcial/boi_redemption_arc:latest
 
   deploy:
     name: Deploy to EC2
@@ -65,12 +65,24 @@ jobs:
         DROPBOX_APP_KEY: ${{secrets.DROPBOX_APP_KEY}}
         DROPBOX_APP_SECRET: ${{secrets.DROPBOX_APP_SECRET}}
         DROPBOX_REFRESH_TOKEN: ${{secrets.DROPBOX_REFRESH_TOKEN}}
+        DOCKER_BOI_IMAGE: "ghcr.io/wkk-offcial/boi_redemption_arc:latest"
+        DOCKER_BOI_NAME: "wkk_boi"
       with:
         host: ${{secrets.BOI_HOSTNAME}}
         username: ec2-user
         key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN
+        envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME
         script: |
-          docker pull ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
-          docker ps -q --filter "name=wkk_boi" | grep -q . && docker stop wkk_boi && docker rm -fv wkk_boi
-          docker run --restart on-failure --detach -e BOT_TOKEN=$DISCORD_TOKEN -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN --name wkk_boi ghcr.io/wkk-offcial/the_boi_redemption_arc/boi_redemption_arc:latest
+          docker pull $DOCKER_BOI_IMAGE
+          docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME
+          docker run --restart on-failure \
+          --detach \
+          -e BOT_TOKEN=$DISCORD_TOKEN \
+          -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY \
+          -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET \
+          -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN \
+          -v ./cache/soundboard:/home/ec2-user/soundboard \
+          --name $DOCKER_BOI_NAME \
+          $DOCKER_BOI_IMAGE
+
+          docker image prune <<< y

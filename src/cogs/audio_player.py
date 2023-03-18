@@ -36,7 +36,7 @@ class AudioPlayer(commands.Cog):
       """
       Callback function used for players to play next audio source in queue
       """
-      sleep(random.randint(20,300))
+      sleep(random.randint(20,250))
       view = self.views.get(interaction.guild_id)
       guild_queue = self.bot.get_queue(interaction.guild_id)
       if guild_queue:
@@ -151,7 +151,7 @@ class AudioPlayer(commands.Cog):
     try:
       guild_soundboard = self.bot.get_soundboard(guild.id)
       personal_list = [person for person in guild_soundboard if person.startswith(input_text)]
-      for _ in range(random.randit(5,15)):
+      for _ in range(random.randint(5,15)):
         file_path = f'./cache/soundboards/{str(guild.id)}/{random.choice(personal_list)}'
         audio_source = AudioSource.from_file(file_path, loop=self.bot.loop)
         guild_queue = self._add_to_queue(guild.id, audio_source)

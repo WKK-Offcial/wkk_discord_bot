@@ -23,6 +23,15 @@ if not discord.opus.is_loaded():
   raise RuntimeError('Opus failed to load!')
 
 bot = BoiBot()
+@bot.event
+async def on_ready():
+  """
+  Event that ocuurence one time when bot is ready to work
+  """
+  logging.info('Logged in as %s (ID: %d)\n-----------\n', bot.user, bot.user.id)
+
+
+
 async def main():
   """Main boot start function"""
   discord.utils.setup_logging(level=logging.WARNING, root=False)

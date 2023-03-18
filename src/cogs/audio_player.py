@@ -50,7 +50,7 @@ class AudioPlayer(commands.Cog):
         # Play next in queue
         next_audio_source = guild_queue[0]
         voice_client:discord.VoiceClient = interaction.guild.voice_client
-        voice_client.play(next_audio_source, after=lambda e: self._play_next(interaction))
+        voice_client.play(next_audio_source, after=lambda e: self._play_next_sim(interaction))
       else:
         if view:
           view.remove_embed()

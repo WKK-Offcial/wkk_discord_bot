@@ -4,20 +4,10 @@ import logging
 from dotenv import load_dotenv
 import discord
 import static_ffmpeg
-import sentry_sdk
 from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
 from utils.boi_bot import BoiBot
 
-#Set up sentry
-sentry_sdk.init(
-    dsn="https://b6304c11001b490c8bc330d8d083884e@o4504864997572608.ingest.sentry.io/4504865129365504",
-
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of transactions for performance monitoring.
-    # We recommend adjusting this value in production.
-    traces_sample_rate=1.0
-)
 # Set up logger
 logging.basicConfig(level=logging.INFO)
 # Load env variables from .env file

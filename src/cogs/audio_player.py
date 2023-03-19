@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import os
+import re
 import logging
 import datetime
 import asyncio
@@ -36,8 +37,8 @@ class AudioPlayer(commands.Cog):
     guild_queue = voice_client.queue
     if guild_queue.count > 0:
       # Play next in queue
-      next_audio_source = await guild_queue.get_wait()
-      await voice_client.play(next_audio_source)
+      next_audio_track = await guild_queue.get_wait()
+      await voice_client.play(next_audio_track)
       # Update embed
       await view._send_embed(voice_client)
     else:
@@ -47,49 +48,43 @@ class AudioPlayer(commands.Cog):
 
 
   @app_commands.command(name="play")
-  async def play(self, interaction: discord.Interaction, input_text: str):
+  async def play(self, interaction: discord.Interaction, search: str):
     """
-    For soundboard type audio ID from list\nFor youtube type url or search phrase
+    For soundboard type audio ID from list
+    For youtube type url or search phrase
     """
-    await interaction.response.send_message(f"Looking for {input_text}...")
-    guild = interaction.guild
+    await interaction.response.send_message(f"Looking for {search}...")
+
+    guild_id = interaction.guild_id
     if interaction.user.voice:
       voice_channel = interaction.user.voice.channel
     else:
       await interaction.edit_original_response(content="You're not in voice channel")
       return
 
-    # Get voice client
-    if not interaction.guild.voice_client:
-      voice_client: wavelink.Player = await voice_channel.connect(cls=wavelink.Player)
-    else:
-      voice_client: wavelink.Player = interaction.guild.voice_client
+    # Connect to vc or change vc to the one caller is in
+    voice_client: wavelink.Player = interaction.guild.voice_client
+    if not voice_client:
+      voice_client = await voice_channel.connect(cls=wavelink.Player)
+    elif voice_client.channel != voice_channel:
+      await voice_client.move_to(voice_channel)
 
     try:
-      # Check if user wants to play audio from soundboard or from youtube
-      if input_text.isnumeric():
-        guild_soundboard = self.bot.get_soundboard(guild.id)
-        file_name = guild_soundboard[int(input_text) - 1]
-        file_path = os.path.abspath(f'cache/soundboards/{str(guild.id)}/{file_name}')
-        audio_source = await wavelink.GenericTrack.search(file_path, return_first=True)
-      else:
-        audio_source = await wavelink.YouTubeTrack.search(input_text, return_first=True)
+      search_result = await self._add_to_queue(search, voice_client)
+      await interaction.edit_original_response(content=f"Found \"{search_result.title}\".")
 
-      # Add to queue and start playback if not yet playing
       if not voice_client.is_playing():
-        await voice_client.play(audio_source)
-      else:
-        await voice_client.queue.put_wait(audio_source)
-
-      await interaction.edit_original_response(content=f"Found \"{audio_source.title}\".")
+        first_in_queue = await voice_client.queue.get_wait()
+        await voice_client.play(first_in_queue)
 
       # Get/create view with audio controls
-      view = self.views.get(guild.id)
+      view = self.views.get(guild_id)
       if not view or not view.active:
-        view = AudioControls(self.bot, guild.id, interaction.channel)
-        self.views[guild.id] = view
+        view = AudioControls(self.bot, guild_id, interaction.channel)
+        self.views[guild_id] = view
       await view._send_embed(voice_client)
 
+    # Catch errors
     except SyntaxError:
       await interaction.edit_original_response(content='No argument passed!')
       logging.error(SyntaxError.msg)
@@ -101,7 +96,33 @@ class AudioPlayer(commands.Cog):
       logging.error(TypeError)
     except yt_dlp.utils.ExtractorError:
       logging.error(yt_dlp.utils.ExtractorError.msg)
-      await interaction.edit_original_response(content=f"\"{input_text}\" not available.")
+      await interaction.edit_original_response(content=f"\"{search}\" not available.")
+
+
+  async def _add_to_queue(self, search:str, voice_client:wavelink.Player) -> wavelink.Playable:
+    """
+    Creates audio tracks and adds it to queue
+    """
+    guild_id = voice_client.guild.id
+    found_playlist = re.search(r"^.*youtu.be\/|list=([^#\&\?]*).*", search)
+    # Check if user wants to play audio from Youtube Playlist...
+    if found_playlist:
+      playlist = await wavelink.YouTubePlaylist.search(found_playlist.groups()[0], return_first=True)
+      for track in playlist.tracks:
+        await voice_client.queue.put_wait(track)
+      audio_track = playlist.tracks[0]
+    # ...or soundboard...
+    elif search.isnumeric():
+      guild_soundboard = self.bot.get_soundboard(guild_id)
+      file_name = guild_soundboard[int(search) - 1]
+      file_path = os.path.abspath(f'cache/soundboards/{str(guild_id)}/{file_name}')
+      audio_track = await wavelink.GenericTrack.search(file_path, return_first=True)
+      await voice_client.queue.put_wait(audio_track)
+    # ...or Youtube track.
+    else:
+      audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
+      await voice_client.queue.put_wait(audio_track)
+    return audio_track
 
 
   @app_commands.command(name='disconnect')
@@ -112,6 +133,7 @@ class AudioPlayer(commands.Cog):
     """
     voice_client: wavelink.Player = interaction.guild.voice_client
     await voice_client.disconnect()
+    await interaction.response.send_message(content='Bot disconnected')
 
   @app_commands.command(name="soundboard")
   async def list_soundboard(self, interaction: discord.Interaction):
@@ -177,13 +199,22 @@ class AudioControls(discord.ui.View):
     if self.embed_handle:
       await self.embed_handle.delete()
 
-    # Create new embed
+    # Get queue
     now_playing = voice_client.current
-    current_queue = ''.join(f"{str(element.title)}\n" for element in voice_client.queue)
+    queue_preview = ''
+    if voice_client.queue.count > 10:
+      for i in range(10):
+        queue_preview += f"{str(voice_client.queue[i].title)}\n"
+      queue_preview += f'... and {voice_client.queue.count - 10} more.'
+    else:
+      for i in range(voice_client.queue.count - 1):
+        queue_preview += f"{str(voice_client.queue[i].title)}\n"
+
+    # Create new embed
     embed = discord.Embed(title='The Boi',
                           color=0x00ff00,
                           timestamp=datetime.datetime.now(datetime.timezone.utc))
-    embed.add_field(name='Queue', value=current_queue, inline=False)
+    embed.add_field(name='Queue', value=queue_preview, inline=False)
     embed.add_field(name='Now Playing', value=f'{now_playing.title}', inline=True)
     embed.set_footer(text='2137',
                     icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')

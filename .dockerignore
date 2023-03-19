@@ -1,0 +1,5 @@
+.git
+.pylintrc
+README.md
+dev-requirements.txt
+.gitignore

@@ -6,6 +6,7 @@ import discord
 import static_ffmpeg
 from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
+from cogs.users_related import UsersRelated
 from utils.boi_bot import BoiBot
 
 # Set up logger
@@ -38,6 +39,7 @@ async def main():
   async with bot:
     await bot.add_cog(BotAdmin(bot))
     await bot.add_cog(AudioPlayer(bot))
+    await bot.add_cog(UsersRelated(bot))
     await bot.start(os.getenv('BOT_TOKEN'))
 
 

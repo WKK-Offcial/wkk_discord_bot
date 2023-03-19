@@ -77,10 +77,14 @@ jobs:
         envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
         script_stop: true
         script: |
+          if [[ -z "$(docker network ls | grep wkk-network)" ]]; then
+            docker network create wkk-network
+          fi
           docker pull $DOCKER_BOI_IMAGE
           docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME || true
           docker run --restart on-failure \
           --detach \
+          --network="wkk-network" \
           -e BOT_TOKEN=$DISCORD_TOKEN \
           -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY \
           -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET \

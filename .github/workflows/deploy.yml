@@ -62,10 +62,10 @@ jobs:
     - name: Deploy Image on EC2
       uses: appleboy/ssh-action@v0.1.8
       env:
-        DISCORD_TOKEN: ${{secrets.BOI_DISCORD_TOKEN}}
-        DROPBOX_APP_KEY: ${{secrets.DROPBOX_APP_KEY}}
-        DROPBOX_APP_SECRET: ${{secrets.DROPBOX_APP_SECRET}}
-        DROPBOX_REFRESH_TOKEN: ${{secrets.DROPBOX_REFRESH_TOKEN}}
+        DISCORD_TOKEN: ${{ secrets.BOI_DISCORD_TOKEN }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT }}
+        SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}
         DOCKER_BOI_IMAGE: "ghcr.io/wkk-offcial/boi_redemption_arc:latest"
         DOCKER_BOI_NAME: "wkk_boi"
         WAVELINK_URL: ${{ secrets.WAVELINK_URL }}
@@ -75,7 +75,7 @@ jobs:
         host: ${{secrets.BOI_HOSTNAME}}
         username: ec2-user
         key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
+        envs: DISCORD_TOKEN, SERVER_PORT, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
         script_stop: true
         script: |
           if [[ -z "$(docker network ls | grep wkk-network)" ]]; then
@@ -87,12 +87,12 @@ jobs:
           --detach \
           --network="wkk-network" \
           -e BOT_TOKEN=$DISCORD_TOKEN \
-          -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY \
-          -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET \
-          -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN \
-          -e WAVELINK_URL \
-          -e WAVELINK_PORT \
-          -e WAVELINK_PASSWORD \
+          -e SERVER_IP=$SERVER_IP \
+          -e SERVER_PORT=$SERVER_PORT \
+          -e SERVER_ENDPOINT=$SERVER_ENDPOINT \
+          -e WAVELINK_URL=$WAVELINK_URL \
+          -e WAVELINK_PORT=$WAVELINK_PORT \
+          -e WAVELINK_PASSWORD=$WAVELINK_PASSWORD \
           -v /home/ec2-user/soundboards:/wkk-bot/cache/soundboards \
           --name $DOCKER_BOI_NAME \
           $DOCKER_BOI_IMAGE

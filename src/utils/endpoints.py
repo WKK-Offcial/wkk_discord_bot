@@ -3,8 +3,9 @@ import os
 import base64
 import logging
 import requests
+import dotenv
 
-
+dotenv.load_dotenv()
 server = f"http://{os.getenv('SERVER_IP')}:{os.getenv('SERVER_PORT')}"
 class Endpoints():
   """
@@ -23,13 +24,13 @@ class Endpoints():
     return response.json()["files"]
 
   @staticmethod
-  def upload_audio(guild_id:int, file_data:bytes) -> str:
+  def upload_audio(guild_id:int, file_name:str, file_data:bytes) -> str:
     """
     Upload bytes data to server
     """
     b64_code = base64.b64encode(file_data)
     headers = {'Content-Type': 'application/json'}
-    mp3_json = {"file": b64_code.decode('utf-8')}
+    mp3_json = {"file_name":file_name, "file_data": b64_code.decode('utf-8')}
     url = server + f"/{os.getenv('SERVER_ENDPOINT')}/{guild_id}"
     message = ''
     try:

@@ -170,7 +170,7 @@ class AudioPlayer(commands.Cog):
       return
 
     mp3_file_bytes = await mp3_file.read()
-    result = Endpoints.upload_audio(interaction.guild_id, mp3_file_bytes)
+    result = Endpoints.upload_audio(interaction.guild_id, mp3_file.filename, mp3_file_bytes)
     await interaction.edit_original_response(content=result)
 
 

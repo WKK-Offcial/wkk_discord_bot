@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import os
 import re
 import logging
 import datetime
@@ -11,6 +10,7 @@ import yt_dlp
 import wavelink
 from discord.ext import commands
 from discord import app_commands
+from utils.endpoints import Endpoints
 
 if TYPE_CHECKING:
   from main import BoiBot
@@ -71,8 +71,11 @@ class AudioPlayer(commands.Cog):
 
     try:
       search_result = await self._add_to_queue(search, voice_client)
-      await interaction.edit_original_response(content=f"Found \"{search_result.title}\".")
+      if not search_result:
+        await interaction.edit_original_response(content=f"Couldn't find \"{search}\".")
+        return
 
+      await interaction.edit_original_response(content=f"Found \"{search_result.title}\".")
       if not voice_client.is_playing():
         first_in_queue = await voice_client.queue.get_wait()
         await voice_client.play(first_in_queue)
@@ -99,7 +102,7 @@ class AudioPlayer(commands.Cog):
       await interaction.edit_original_response(content=f"\"{search}\" not available.")
 
 
-  async def _add_to_queue(self, search:str, voice_client:wavelink.Player) -> wavelink.Playable:
+  async def _add_to_queue(self, search:str, voice_client:wavelink.Player) -> wavelink.Playable | None:
     """
     Creates audio tracks and adds it to queue
     """
@@ -113,9 +116,13 @@ class AudioPlayer(commands.Cog):
       audio_track = playlist.tracks[0]
     # ...or soundboard...
     elif search.isnumeric():
-      guild_soundboard = self.bot.get_soundboard(guild_id)
+      sound_id = int(search)
+      guild_soundboard = Endpoints.get_soundboard(guild_id)
+      if not guild_soundboard or sound_id < len(guild_soundboard):
+        return None
+
       file_name = guild_soundboard[int(search) - 1]
-      file_path = os.path.abspath(f'cache/soundboards/{str(guild_id)}/{file_name}')
+      file_path = f'sounds/{str(guild_id)}/{file_name}'
       audio_track = await wavelink.GenericTrack.search(file_path, return_first=True)
       await voice_client.queue.put_wait(audio_track)
     # ...or Youtube track.
@@ -141,7 +148,7 @@ class AudioPlayer(commands.Cog):
     Lists all audio files uploaded to soundboard
     """
     await interaction.response.send_message("Preparing list...")
-    guild_soundboard = self.bot.get_soundboard(interaction.guild_id)
+    guild_soundboard = Endpoints.get_soundboard(interaction.guild_id)
     message_content = "SOUNDBOARD\n"
     i = 0
     for entry in guild_soundboard:
@@ -162,11 +169,9 @@ class AudioPlayer(commands.Cog):
       await interaction.edit_original_response(content='Audio files must have .mp3 format')
       return
 
-    save_location = f"./cache/soundboards/{interaction.guild_id}/{mp3_file.filename}"
-    await mp3_file.save(save_location)
-    self.bot.dropbox.upload_file(save_location, interaction.guild_id)
-    self.bot.add_to_soundboard(interaction.guild_id, mp3_file.filename)
-    await interaction.edit_original_response(content=f'Successfully uploaded {mp3_file.filename}')
+    mp3_file_bytes = await mp3_file.read()
+    result = Endpoints.upload_audio(interaction.guild_id, mp3_file_bytes)
+    await interaction.edit_original_response(content=result)
 
 
 class AudioControls(discord.ui.View):

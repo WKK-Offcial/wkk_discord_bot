@@ -118,7 +118,7 @@ class AudioPlayer(commands.Cog):
     elif search.isnumeric():
       sound_id = int(search)
       guild_soundboard = Endpoints.get_soundboard(guild_id)
-      if not guild_soundboard or sound_id < len(guild_soundboard):
+      if not guild_soundboard or sound_id > len(guild_soundboard):
         return None
 
       file_name = guild_soundboard[int(search) - 1]

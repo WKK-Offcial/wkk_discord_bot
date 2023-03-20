@@ -75,7 +75,7 @@ jobs:
         host: ${{secrets.BOI_HOSTNAME}}
         username: ec2-user
         key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN, SERVER_PORT, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
+        envs: DISCORD_TOKEN, SERVER_IP, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
         script_stop: true
         script: |
           if [[ -z "$(docker network ls | grep wkk-network)" ]]; then

@@ -228,7 +228,7 @@ class PlayerControlView(discord.ui.View):
       await interaction.response.send_message("Nothing is playing right now",
                                               delete_after=3, ephemeral=True)
 
-  @discord.ui.button(label='|| Pause', style=discord.ButtonStyle.blurple)
+  @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
   async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
     """
     Pause/resume the player on button press

@@ -66,7 +66,7 @@ class AudioPlayer(commands.Cog):
       if not view or not view.active:
         view = PlayerControlView(self.bot, guild_id, interaction.channel)
         self.views[guild_id] = view
-      await view._send_embed(bot_vc)
+      await view.send_embed(bot_vc)
 
     # Catch errors
     except SyntaxError:
@@ -160,10 +160,10 @@ class AudioPlayer(commands.Cog):
       next_audio_track = await guild_queue.get_wait()
       await bot_vc.play(next_audio_track)
       # Update embed
-      await view._send_embed(bot_vc)
+      await view.send_embed(bot_vc)
     else:
       if view:
-        view._remove_embed()
+        view.remove_embed()
         self.views.pop(guild_id)
 
   async def _add_to_queue(self, search:str, bot_vc:wavelink.Player) -> wavelink.Playable | None:
@@ -264,14 +264,14 @@ class PlayerControlView(discord.ui.View):
       bot_vc.queue.clear()
       await bot_vc.stop()
       await interaction.response.defer()
-      self._remove_embed()
+      self.remove_embed()
       self.stop()
       self.active = False
     else:
       await interaction.response.send_message("Nothing is playing right now",
                                               delete_after=3, ephemeral=True)
 
-  def _remove_embed(self):
+  def remove_embed(self):
     """
     Removes embed with audio player informations
     """
@@ -281,7 +281,7 @@ class PlayerControlView(discord.ui.View):
       self.clear_items()
       asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-  async def _send_embed(self, bot_vc:wavelink.Player):
+  async def send_embed(self, bot_vc:wavelink.Player):
     """
     Removes last message and sends new one to keep it on the bottom of the chat
     """

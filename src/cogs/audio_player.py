@@ -245,7 +245,7 @@ class PlayerControlView(discord.ui.View):
       button.label = '▶ Resume'
     else:
       await bot_vc.resume()
-      button.label = '|| Pause'
+      button.label = '❚❚ Pause'
     await interaction.response.edit_message(view=self)
 
   @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)

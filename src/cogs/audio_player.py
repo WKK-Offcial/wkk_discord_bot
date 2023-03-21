@@ -93,7 +93,7 @@ class AudioPlayer(commands.Cog):
     """
     bot_vc: wavelink.Player = interaction.guild.voice_client
     await bot_vc.disconnect()
-    await interaction.response.send_message(content='Bot disconnected')
+    await interaction.response.send_message(content='Bot disconnected', ephemeral=True, delete_after=3)
 
   @commands.guild_only()
   @app_commands.command(name="soundboard")
@@ -119,15 +119,15 @@ class AudioPlayer(commands.Cog):
     Set volume. Range: 0-100
     """
     if value < 0 or value > 100:
-      await interaction.response.send_message("Value must be between 0 and 100")
+      await interaction.response.send_message("Value must be between 0 and 100", ephemeral=True, delete_after=3)
       return
 
     bot_vc: wavelink.Player = interaction.guild.voice_client
     if bot_vc:
-      bot_vc.volume = value
-      await interaction.response.send_message(f"Value set to {value}")
+      await bot_vc.set_volume(value)
+      await interaction.response.send_message(f"Value set to {value}", delete_after=15)
     else:
-      await interaction.response.send_message("Bot must be in voice channel")
+      await interaction.response.send_message("Bot must be in voice channel", ephemeral=True, delete_after=3)
 
   @commands.cooldown(rate=1, per=1)
   @commands.guild_only()

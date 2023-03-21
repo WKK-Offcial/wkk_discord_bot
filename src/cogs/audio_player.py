@@ -107,7 +107,7 @@ class AudioPlayer(commands.Cog):
     i = 0
     for entry in guild_soundboard:
       i+=1
-      message_content += f'{i}. {entry}\n'
+      message_content += f"{i}. {entry.replace('_', ' ').capitalize().split('.mp3')[0]}\n"
 
     file = discord.File(fp=BytesIO(message_content.encode("utf8")), filename="soundboard.cpp")
     await interaction.edit_original_response(content='', attachments=[file])

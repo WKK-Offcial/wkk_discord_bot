@@ -24,7 +24,7 @@ class BoiBot(commands.Bot):
         self.dropbox = DropboxManager()
         self.dropbox.download_all()
 
-        # Load sounboards stored in cloud
+        # Load soundboards stored in cloud
         for root, dirs, files in os.walk('./cache/soundboards/'):
             for guild_id in dirs:
                 self._soundboards[str(guild_id)] = []

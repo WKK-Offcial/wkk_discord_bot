@@ -52,7 +52,7 @@ class AudioPlayer(commands.Cog):
     async def play(self, interaction: discord.Interaction, search: str):
         """
         For soundboard type audio ID from list
-        For youtube type url or search phrase
+        For YouTube type url or search phrase
         """
         await interaction.response.send_message(f"Looking for {search}...")
 
@@ -105,7 +105,7 @@ class AudioPlayer(commands.Cog):
         """
         guild_id = voice_client.guild.id
         found_playlist = re.search(r"^.*youtu.be\/|list=([^#\&\?]*).*", search)
-        # Check if user wants to play audio from Youtube Playlist...
+        # Check if user wants to play audio from YouTube Playlist...
         if found_playlist:
             playlist = await wavelink.YouTubePlaylist.search(found_playlist.groups()[0], return_first=True)
             for track in playlist.tracks:
@@ -183,7 +183,7 @@ class AudioControls(discord.ui.View):
 
     def _remove_embed(self):
         """
-        Removes embed with audio player informations
+        Removes embed with audio player information
         """
         if self.embed_handle:
             coro = self.embed_handle.delete()

@@ -31,7 +31,7 @@ bot = BoiBot()
 @bot.event
 async def on_ready():
     """
-  Event that ocuurence one time when bot is ready to work
+  Event that occurrence one time when bot is ready to work
   """
     logging.info('Logged in as %s (ID: %d)\n-----------\n', bot.user, bot.user.id)
 

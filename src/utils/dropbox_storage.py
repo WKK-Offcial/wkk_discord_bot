@@ -6,9 +6,9 @@ import dropbox
 from dropbox.exceptions import ApiError, AuthError
 
 
-class DropboxManager():
+class DropboxManager:
     """
-    Class resposible for connection between the bot and a remote storage service (Dropbox)
+    Class responsible for connection between the bot and a remote storage service (Dropbox)
     """
 
     def __init__(self):

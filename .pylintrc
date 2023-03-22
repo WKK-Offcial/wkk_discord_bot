@@ -3,6 +3,7 @@
 disabl=
       C0114,
       W0212,
+      W0613,
 # Analyse import fallback blocks. This can be used to support both Python 2 and
 # 3 compatible code, which means that the block might have code that exists
 # only in one or another interpreter, leading to false positives when analysed.
@@ -332,7 +333,7 @@ expected-line-ending-format=
 ignore-long-lines=^\s*(# )?<?https?://\S+>?$
 
 # Number of spaces of indent required inside a hanging or continued line.
-indent-after-paren=2
+indent-after-paren=4
 
 # String used as indentation unit. This is usually "    " (2 spaces) or "\t" (1
 # tab).

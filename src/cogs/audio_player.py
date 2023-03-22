@@ -200,7 +200,12 @@ class AudioPlayer(commands.Cog):
                 start_time_regex = re.search(r"(?:[\?&])?t=([0-9]+)", search)
                 if start_time_regex and start_time_regex.groups()[0]:
                     start_time = int(start_time_regex.groups()[0]) * 1000
-                audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
+                # We need to extract vid id because wavelink does not support shortened links
+                video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
+                if video_id_regex and video_id_regex.groups()[0]:
+                    audio_track = await wavelink.YouTubeTrack.search(video_id_regex.groups()[0], return_first=True)
+                else:
+                    audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
                 await bot_vc.queue.put_wait(audio_track)
             return audio_track, start_time
         except wavelink.exceptions.NoTracksError:

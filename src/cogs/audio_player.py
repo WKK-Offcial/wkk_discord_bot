@@ -6,7 +6,6 @@ import datetime
 import asyncio
 from io import BytesIO
 import discord
-import yt_dlp
 import wavelink
 from discord.ext import commands
 from discord import app_commands
@@ -14,7 +13,6 @@ from utils.endpoints import Endpoints
 
 if TYPE_CHECKING:
   from main import BoiBot
-
 
 class AudioPlayer(commands.Cog):
   """
@@ -78,9 +76,6 @@ class AudioPlayer(commands.Cog):
     except TypeError:
       await interaction.edit_original_response(content="Type error!")
       logging.error(TypeError)
-    except yt_dlp.utils.ExtractorError:
-      logging.error(yt_dlp.utils.ExtractorError.msg)
-      await interaction.edit_original_response(content=f"\"{search}\" not available.")
 
 
   @commands.cooldown(rate=1, per=1)
@@ -103,11 +98,15 @@ class AudioPlayer(commands.Cog):
     """
     await interaction.response.send_message("Preparing list...")
     guild_soundboard = Endpoints.get_soundboard(interaction.guild_id)
+    if not guild_soundboard:
+      await interaction.edit_original_response(content='No files uploaded!')
+      return
+
     message_content = "SOUNDBOARD\n"
     i = 0
     for entry in guild_soundboard:
       i+=1
-      message_content += f"{i}. {entry.replace('_', ' ').capitalize().split('.mp3')[0]}\n"
+      message_content += f"{i}. {entry.replace('_', ' - ', 1).replace('_', ' ').capitalize().split('.mp3')[0]}\n"
 
     file = discord.File(fp=BytesIO(message_content.encode("utf8")), filename="soundboard.cpp")
     await interaction.edit_original_response(content='', attachments=[file])
@@ -171,30 +170,34 @@ class AudioPlayer(commands.Cog):
     Creates audio tracks and adds it to queue
     """
     guild_id = bot_vc.guild.id
-    found_playlist = re.search(r"^.*youtu.be\/|list=([^#\&\?]*).*", search)
     # Check if user wants to play audio from Youtube Playlist...
-    if found_playlist:
-      playlist = await wavelink.YouTubePlaylist.search(found_playlist.groups()[0], return_first=True)
-      for track in playlist.tracks:
-        await bot_vc.queue.put_wait(track)
-      audio_track = playlist.tracks[0]
-    # ...or soundboard...
-    elif search.isnumeric():
-      sound_id = int(search)
-      guild_soundboard = Endpoints.get_soundboard(guild_id)
-      if not guild_soundboard or sound_id > len(guild_soundboard):
-        return None
+    try:
+      youtube_playlist = re.search(r"^.*youtu.be\/|list=([^#\&\?]*).*", search)
+      if youtube_playlist:
+        playlist = await wavelink.YouTubePlaylist.search(youtube_playlist.groups()[0], return_first=True)
+        for track in playlist.tracks:
+          await bot_vc.queue.put_wait(track)
+        audio_track = playlist.tracks[0]
+      # ...or soundboard...
+      elif search.isdecimal():
+        sound_id = int(search)
+        guild_soundboard = Endpoints.get_soundboard(guild_id)
+        if not guild_soundboard or sound_id > len(guild_soundboard):
+          return None
 
-      file_name = guild_soundboard[int(search) - 1]
-      file_path = f'sounds/{str(guild_id)}/{file_name}'
-      audio_track = await wavelink.GenericTrack.search(file_path, return_first=True)
-      await bot_vc.queue.put_wait(audio_track)
-    # ...or Youtube track.
-    else:
-      audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
-      await bot_vc.queue.put_wait(audio_track)
-    return audio_track
-
+        file_name = guild_soundboard[int(search) - 1]
+        file_path = f'sounds/{str(guild_id)}/{file_name}'
+        audio_track = await wavelink.GenericTrack.search(file_path, return_first=True)
+        await bot_vc.queue.put_wait(audio_track)
+      # ...Else search on youtube.
+      else:
+        audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
+        await bot_vc.queue.put_wait(audio_track)
+      return audio_track
+    except wavelink.exceptions.NoTracksError:
+      return None
+    except wavelink.exceptions.WavelinkException:
+      return None
 
 class PlayerControlView(discord.ui.View):
   """

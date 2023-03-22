@@ -1,10 +1,12 @@
 import asyncio
-import os
 import logging
-from dotenv import load_dotenv
+import os
+
 import discord
 import static_ffmpeg
 import wavelink
+from dotenv import load_dotenv
+
 from cogs.audio_player import AudioPlayer, PlayerControlView
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
@@ -18,11 +20,11 @@ load_dotenv()
 static_ffmpeg.add_paths()
 # Load opus library - depends on OS
 if os.name == 'nt':
-  discord.opus._load_default()
+    discord.opus._load_default()
 elif os.name == 'posix':
-  discord.opus.load_opus('libopus.so.0')
+    discord.opus.load_opus('libopus.so.0')
 if not discord.opus.is_loaded():
-  raise RuntimeError('Opus failed to load!')
+    raise RuntimeError('Opus failed to load!')
 
 # Create bot and cogs
 bot = BoiBot()
@@ -34,41 +36,42 @@ users_related = UsersRelated(bot)
 # Setup events
 @bot.event
 async def on_ready():
-  """
-  Event that ocuurence one time when bot is ready to work
-  """
-  logging.info('Logged in as %s (ID: %d)\n-----------\n', bot.user, bot.user.id)
+    """
+    Event that occurrence one time when bot is ready to work
+    """
+    logging.info('Logged in as %s (ID: %d)\n-----------\n', bot.user, bot.user.id)
+
 
 @bot.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-  """
-  Event that ocuurence whenever someone leaves/joins vc
-  """
-  voice_state = member.guild.voice_client
-  # Checking if the bot is connected to a channel and if there is only 1 member connected to it (the bot itself)
-  if voice_state is not None and len(voice_state.channel.members) == 1:
-    view: PlayerControlView = audio_player.views.get(member.guild.id)
-    bot_vc:wavelink.Player = member.guild.voice_client
-    if bot_vc.is_playing():
-      bot_vc.queue.clear()
-      await bot_vc.stop()
-      view.remove_embed()
-      view.stop()
-      view.active = False
-    await voice_state.disconnect()
+    """
+    Event that occurrence whenever someone leaves/joins vc
+    """
+    voice_state = member.guild.voice_client
+    # Checking if the bot is connected to a channel and if there is only 1 member connected to it (the bot itself)
+    if voice_state is not None and len(voice_state.channel.members) == 1:
+        view: PlayerControlView = audio_player.views.get(member.guild.id)
+        bot_vc: wavelink.Player = member.guild.voice_client
+        if bot_vc.is_playing():
+            bot_vc.queue.clear()
+            await bot_vc.stop()
+            view.remove_embed()
+            view.stop()
+            view.active = False
+        await voice_state.disconnect()
 
 
 async def main():
-  """
-  Main boot start function
-  """
-  discord.utils.setup_logging(level=logging.WARNING, root=False)
-  # Load cogs
-  async with bot:
-    await bot.add_cog(bot_admin)
-    await bot.add_cog(users_related)
-    await bot.add_cog(audio_player)
-    await bot.start(os.getenv('BOT_TOKEN'))
+    """
+    Main boot start function
+    """
+    discord.utils.setup_logging(level=logging.WARNING, root=False)
+    # Load cogs
+    async with bot:
+        await bot.add_cog(bot_admin)
+        await bot.add_cog(users_related)
+        await bot.add_cog(audio_player)
+        await bot.start(os.getenv('BOT_TOKEN'))
 
 
 asyncio.run(main())

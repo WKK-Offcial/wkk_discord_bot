@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class UsersRelated(commands.Cog):
     """
-    Class for commands realted with users
+    Class for commands related with users
     """
 
     def __init__(self, bot: BoiBot) -> None:

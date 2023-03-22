@@ -1,56 +1,59 @@
-import os
 import bisect
+import os
+
 import wavelink
 from discord import Intents
 from discord.ext import commands
+
 from .dropbox_storage import DropboxManager
 
+
 class BoiBot(commands.Bot):
-  """
+    """
   Class inherited from Bot in order to add queues to it
   """
-  def __init__(self):
-    intents = Intents.default()
-    intents.message_content = True
-    super().__init__( command_prefix=commands.when_mentioned_or("/"),
-                      description='The Boi is back',
-                      intents=intents,)
 
-    self._soundboards:dict[str, list] = {}
-    self.dropbox = DropboxManager()
-    self.dropbox.download_all()
+    def __init__(self):
+        intents = Intents.default()
+        intents.message_content = True
+        super().__init__(command_prefix=commands.when_mentioned_or("/"),
+                         description='The Boi is back',
+                         intents=intents, )
 
-    # Load sounboards stored in cloud
-    for root, dirs, files in os.walk('./cache/soundboards/'):
-      for guild_id in dirs:
-        self._soundboards[str(guild_id)] = []
-      for file_name in files:
-        guild_id = os.path.basename(root)
-        self._soundboards[str(guild_id)].append(file_name)
+        self._soundboards: dict[str, list] = {}
+        self.dropbox = DropboxManager()
+        self.dropbox.download_all()
 
-    for soundboard in self._soundboards.values():
-      soundboard.sort()
+        # Load sounboards stored in cloud
+        for root, dirs, files in os.walk('./cache/soundboards/'):
+            for guild_id in dirs:
+                self._soundboards[str(guild_id)] = []
+            for file_name in files:
+                guild_id = os.path.basename(root)
+                self._soundboards[str(guild_id)].append(file_name)
 
+        for soundboard in self._soundboards.values():
+            soundboard.sort()
 
-  async def setup_hook(self) -> None:
-    """
+    async def setup_hook(self) -> None:
+        """
     Wavelink setup
     """
-    node: wavelink.Node = wavelink.Node(uri=os.getenv('WAVELINK_URL') + ':' + os.getenv('WAVELINK_PORT'),
-                                        password=os.getenv('WAVELINK_PASSWORD'))
-    await wavelink.NodePool.connect(client=self, nodes=[node])
+        node: wavelink.Node = wavelink.Node(uri=os.getenv('WAVELINK_URL') + ':' + os.getenv('WAVELINK_PORT'),
+                                            password=os.getenv('WAVELINK_PASSWORD'))
+        await wavelink.NodePool.connect(client=self, nodes=[node])
 
-  def get_soundboard(self, guild_id:int):
-    """
+    def get_soundboard(self, guild_id: int):
+        """
     Returns queue for specified guild
     """
-    soundboard = self._soundboards.get(str(guild_id))
-    if not soundboard:
-      self._soundboards[str(guild_id)] = soundboard = []
-    return soundboard
+        soundboard = self._soundboards.get(str(guild_id))
+        if not soundboard:
+            self._soundboards[str(guild_id)] = soundboard = []
+        return soundboard
 
-  def add_to_soundboard(self, guild_id:int, file_name:str):
-    """
+    def add_to_soundboard(self, guild_id: int, file_name: str):
+        """
     Adds audio file to sound list
     """
-    bisect.insort(self._soundboards[str(guild_id)], file_name)
+        bisect.insort(self._soundboards[str(guild_id)], file_name)

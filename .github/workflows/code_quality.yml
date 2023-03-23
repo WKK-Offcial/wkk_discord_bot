@@ -28,7 +28,7 @@ jobs:
           sleep 20
           kill "$!"
         env:
-          DISCORD_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
+          BOT_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}

@@ -7,7 +7,7 @@ import static_ffmpeg
 import wavelink
 from dotenv import load_dotenv
 
-from cogs.audio_player import AudioPlayer, PlayerControlView
+from cogs.audio_player import AudioPlayer, PlayerState
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
 from utils.boi_bot import BoiBot
@@ -50,14 +50,12 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
     voice_state = member.guild.voice_client
     # Checking if the bot is connected to a channel and if there is only 1 member connected to it (the bot itself)
     if voice_state is not None and len(voice_state.channel.members) == 1:
-        view: PlayerControlView = audio_player.views.get(member.guild.id)
+        state: PlayerState = audio_player.states.get(member.guild.id)
         bot_vc: wavelink.Player = member.guild.voice_client
         if bot_vc.is_playing():
             bot_vc.queue.clear()
             await bot_vc.stop()
-            view.remove_embed()
-            view.stop()
-            view.active = False
+        await state.transit_to_stopped_no_users()
         await voice_state.disconnect()
 
 

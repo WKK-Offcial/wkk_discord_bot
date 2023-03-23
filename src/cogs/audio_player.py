@@ -5,7 +5,7 @@ import datetime
 import logging
 import re
 from io import BytesIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import discord
 import wavelink
@@ -20,12 +20,13 @@ if TYPE_CHECKING:
 class AudioPlayer(commands.Cog):
     """
     Class for music commands.
-    self.views is dictionary that holds handle to a message with audio controls view {guild_id:view},
+    self.states is dictionary that holds handle to a player context (in particular, controllable player view)
+    {guild_id:state}
     """
 
     def __init__(self, bot: BoiBot) -> None:
         self.bot: BoiBot = bot
-        self.views: dict[int, PlayerControlView] = {}
+        self.states: dict[int, PlayerState] = {}
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -64,11 +65,10 @@ class AudioPlayer(commands.Cog):
                 await bot_vc.play(first_in_queue, start=start_time)
 
             # Get/create view with audio controls
-            view = self.views.get(guild_id)
-            if not view or not view.active:
-                view = PlayerControlView(self.bot, guild_id, interaction.channel)
-                self.views[guild_id] = view
-            await view.send_embed(bot_vc)
+            if self.states.get(guild_id) is None:
+                self.states[guild_id] = PlayerState(bot_vc, guild_id, self.bot, lambda: self._clear_state(guild_id))
+
+            await self.states[guild_id].create_control_view_if_does_not_exist(interaction.channel)
 
         # Catch errors
         except SyntaxError as err:
@@ -80,6 +80,9 @@ class AudioPlayer(commands.Cog):
         except TypeError as err:
             await interaction.edit_original_response(content="Type error!")
             logging.error(err)
+
+    def _clear_state(self, guild_id: int) -> None:
+        self.states.pop(guild_id)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -155,17 +158,16 @@ class AudioPlayer(commands.Cog):
         """
         guild_id = payload.player.guild.id
         bot_vc = payload.player
-        view = self.views.get(guild_id)
+        state = self.states.get(guild_id)
         guild_queue = bot_vc.queue
         if guild_queue.count > 0:
             # Play next in queue
             next_audio_track = await guild_queue.get_wait()
             await bot_vc.play(next_audio_track)
             # Update embed
-            await view.send_embed(bot_vc)
-        elif view:
-            view.remove_embed()
-            self.views.pop(guild_id)
+            await state.resend_control_view()
+        elif state:
+            await state.transit_to_queue_ended()
             await bot_vc.set_filter(wavelink.Filter())
 
     async def _add_to_queue(self, search: str, bot_vc: wavelink.Player) -> tuple[wavelink.Playable | None, int]:
@@ -215,18 +217,149 @@ class AudioPlayer(commands.Cog):
             return None
 
 
-class PlayerControlView(discord.ui.View):
+class PlayerState:
+    """
+    Contains custom state related to the player
+    """
+    def __init__(self, bot_vc: wavelink.Player, guild_id: int, bot: BoiBot, cleanup: Callable[[], None]):
+        self.active_view: PlayerView = None
+        self.bot_vc: wavelink.Player = bot_vc
+        self.guild_id: int = guild_id
+        self.last_text_channel_used: discord.TextChannel = None
+        self.bot = bot
+        self.killed = False
+        self.cleanup = cleanup
+
+    async def transit_to_stopped_no_users(self) -> None:
+        """
+        Player stopped because all users left the channel
+        """
+        if self.killed:
+            return
+        self._destroy_current_embed()
+        self.active_view = PlayerNoMoreUsersView(self)
+        await self.active_view.send_embed(self.last_text_channel_used)
+        self._cleanup_self()
+
+    async def create_control_view_if_does_not_exist(self, text_channel: discord.TextChannel) -> None:
+        """
+        Create control view
+        """
+        if self.killed:
+            return
+        self._destroy_current_embed()
+        self.active_view = PlayerControlView(self)
+        self.last_text_channel_used = text_channel
+        await self.active_view.send_embed(text_channel)
+
+    async def resend_control_view(self) -> None:
+        """
+        Send control view again
+        """
+        if self.killed:
+            return
+        self._destroy_current_embed()
+        self.active_view = PlayerControlView(self)
+        await self.active_view.send_embed(self.last_text_channel_used)
+
+    async def transit_to_queue_ended(self) -> None:
+        """
+        Player stopped because the queue has ended
+        """
+        if self.killed:
+            return
+        self._destroy_current_embed()
+        self.active_view = PlayerEndedView(self)
+        await self.active_view.send_embed(self.last_text_channel_used)
+        # currently there is no sense to do anything for this view, but there will be an undo button here
+        self._cleanup_self()
+
+    def _destroy_current_embed(self) -> None:
+        if self.active_view is not None:
+            self.active_view.stop()
+            self.active_view.remove_embed()
+
+    def _cleanup_self(self) -> None:
+        self.active_view.stop()
+        self.killed = True
+        self.cleanup()
+
+
+class PlayerView(discord.ui.View):
+    def __init__(self, player_state: PlayerState):
+        super().__init__(timeout=None)
+        self.embed_handle: discord.Message = None
+        self.player_state = player_state
+
+    def remove_embed(self) -> None:
+        """
+        Removes embed with audio player information
+        """
+        if self.embed_handle:
+            coro = self.embed_handle.delete()
+            self.stop()
+            self.clear_items()
+            asyncio.run_coroutine_threadsafe(coro, self.player_state.bot.loop)
+
+    async def send_embed(self, text_channel: discord.TextChannel) -> None:
+        """
+        Removes last message and sends new one to keep it on the bottom of the chat
+        """
+        if self.embed_handle:
+            await self.embed_handle.delete()
+
+        self.embed_handle = await self.make_embed(text_channel)
+
+    async def make_embed(self, channel) -> discord.Embed:
+        raise NotImplementedError("Should be overriden")
+
+    async def _add_footer(self, embed) -> None:
+        embed.set_footer(text='2137',
+                         icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+
+    async def _generate_embed_with_defaults(self) -> discord.Embed:
+        return discord.Embed(title='The Boi',
+                             color=0x00ff00,
+                             timestamp=datetime.datetime.now(datetime.timezone.utc))
+
+
+class PlayerNoMoreUsersView(PlayerView):
+    """
+    View class for after all the users have left the channel
+    """
+
+    def __init__(self, player_state: PlayerState):
+        super().__init__(player_state)
+
+    async def make_embed(self, channel) -> discord.Embed:
+        embed = await self._generate_embed_with_defaults()
+        embed.add_field(name='All users have left the channel', value=':(', inline=True)
+        await self._add_footer(embed)
+        return await channel.send(content=None, embed=embed, view=self)
+
+
+class PlayerEndedView(PlayerView):
+    """
+    View class for after the queue has ended and no song is playing
+    """
+
+    def __init__(self, player_state: PlayerState):
+        super().__init__(player_state)
+
+    async def make_embed(self, channel) -> discord.Embed:
+        embed = await self._generate_embed_with_defaults()
+        embed.add_field(name='Nothing is being played. The queue has ended.', value=':(', inline=True)
+        await self._add_footer(embed)
+        return await channel.send(content=None, embed=embed, view=self)
+
+
+class PlayerControlView(PlayerView):
     """
     View class for controlling audio player through view
     """
 
-    def __init__(self, bot: BoiBot, guild_id: int, text_channel: discord.TextChannel):
-        super().__init__(timeout=None)
-        self.bot: BoiBot = bot
-        self.guild_id: int = guild_id
-        self.text_channel: discord.TextChannel = text_channel
-        self.embed_handle: discord.Message = None
-        self.active = True
+    def __init__(self, player_state: PlayerState):
+        super().__init__(player_state)
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -283,9 +416,6 @@ class PlayerControlView(discord.ui.View):
             bot_vc.queue.clear()
             await bot_vc.stop()
             await interaction.response.defer()
-            self.remove_embed()
-            self.stop()
-            self.active = False
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
@@ -315,25 +445,10 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-            
-    def remove_embed(self):
-        """
-        Removes embed with audio player informations
-        """
-        if self.embed_handle:
-            coro = self.embed_handle.delete()
-            self.stop()
-            self.clear_items()
-            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    async def send_embed(self, bot_vc: wavelink.Player):
-        """
-        Removes last message and sends new one to keep it on the bottom of the chat
-        """
-        if self.embed_handle:
-            await self.embed_handle.delete()
-
+    async def make_embed(self, text_channel) -> discord.Embed:
         # Calculate queue time length
+        bot_vc = self.player_state.bot_vc
         now_playing = bot_vc.current
         total_seconds = 0
         for i in range(bot_vc.queue.count):
@@ -356,17 +471,13 @@ class PlayerControlView(discord.ui.View):
             queue_preview += f'{queue_time}\n'
 
         # Create new embed
-        embed = discord.Embed(title='The Boi',
-                              color=0x00ff00,
-                              timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed = await self._generate_embed_with_defaults()
         if bot_vc.queue.count > 0:
             embed.add_field(name='Queue', value=queue_preview, inline=False)
         embed.add_field(name='Now Playing', value=f'{now_playing.title}\n{now_playing_time}', inline=True)
         embed.add_field(name='', value='▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁', inline=False)
-        embed.set_footer(text='2137',
-                         icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+        await self._add_footer(embed)
         thumbnail = await wavelink.YouTubeTrack.fetch_thumbnail(now_playing)
         if thumbnail:
             embed.set_thumbnail(url=thumbnail)
-
-        self.embed_handle = await self.text_channel.send(content=None, embed=embed, view=self)
+        return await text_channel.send(content=None, embed=embed, view=self)

@@ -48,6 +48,7 @@ class AudioPlayer(commands.Cog):
         bot_vc: wavelink.Player = interaction.guild.voice_client
         if not bot_vc:
             bot_vc = await voice_channel.connect(cls=wavelink.Player)
+            await bot_vc.set_filter(wavelink.Filter())
         elif bot_vc.channel != voice_channel:
             await bot_vc.move_to(voice_channel)
 
@@ -285,6 +286,27 @@ class PlayerControlView(discord.ui.View):
             self.remove_embed()
             self.stop()
             self.active = False
+        else:
+            await interaction.response.send_message("Nothing is playing right now",
+                                                    delete_after=3, ephemeral=True)
+                     
+    #TODO 
+    # - make initial button style based on state of the filter. 
+    #  - If bot stops playing with filter on then joins again the button is gray even tho the filter is on.
+                 
+    @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
+    async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Czwarta gęstość
+        """
+        bot_vc: wavelink.Player = interaction.guild.voice_client
+        if bot_vc.is_playing():
+            filter_ = wavelink.Filter(vibrato=wavelink.Vibrato(frequency=14,depth=1)) # czwarta gęstość
+            no_filter = wavelink.Filter()
+            await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
+            button.style = discord.ButtonStyle.green if bot_vc.filter else discord.ButtonStyle.gray
+            button.label = button.label + 'ඞ'
+            await interaction.response.edit_message(view=self)
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)

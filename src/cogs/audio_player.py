@@ -163,10 +163,10 @@ class AudioPlayer(commands.Cog):
             await bot_vc.play(next_audio_track)
             # Update embed
             await view.send_embed(bot_vc)
-        else:
-            if view:
-                view.remove_embed()
-                self.views.pop(guild_id)
+        elif view:
+            view.remove_embed()
+            self.views.pop(guild_id)
+            await bot_vc.set_filter(wavelink.Filter())
 
     async def _add_to_queue(self, search: str, bot_vc: wavelink.Player) -> tuple[wavelink.Playable | None, int]:
         """
@@ -289,9 +289,6 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-                     
-    #TODO 
-    # - make initial button emoji based on state of the filter. 
                  
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -305,7 +302,11 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
             return
         if bot_vc.is_playing():
-            filter_ = wavelink.Filter(vibrato=wavelink.Vibrato(frequency=14,depth=1)) # czwarta gęstość
+            filter_ = wavelink.Filter(
+                        tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
+                        vibrato=wavelink.Vibrato(frequency=14,depth=1),
+                        timescale=wavelink.Timescale(pitch=0.8)
+                        ) 
             no_filter = wavelink.Filter()
             await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
             button.label = '' if bot_vc.filter else 'ඞ'
@@ -314,7 +315,7 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-
+            
     def remove_embed(self):
         """
         Removes embed with audio player informations

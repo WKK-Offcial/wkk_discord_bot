@@ -288,6 +288,35 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
+            
+    @discord.ui.button(label='ඞ', style=discord.ButtonStyle.gray)
+    async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Czwarta gęstość
+        """
+        bot_vc: wavelink.Player = interaction.guild.voice_client
+        if bot_vc.is_playing():
+            filter_ = wavelink.Filter(vibrato=wavelink.Vibrato(frequency=14,depth=1)) # czwarta gęstość
+            no_filter = wavelink.Filter()
+            try:
+                if bot_vc.filter:
+                    await bot_vc.set_filter(no_filter)
+                    button.label = button.label + 'ඞ'
+                    button.style = discord.ButtonStyle.gray
+                else:
+                    await bot_vc.set_filter(filter_)
+                    button.label = button.label + 'ඞ'
+                    button.style = discord.ButtonStyle.green
+            except AttributeError:
+                # happens when no filter have been set yet
+                await bot_vc.set_filter(filter_)
+                button.label = button.label + 'ඞ'
+                button.style = discord.ButtonStyle.green
+            # await interaction.response.defer()
+            await interaction.response.edit_message(view=self)
+        else:
+            await interaction.response.send_message("Nothing is playing right now",
+                                                    delete_after=3, ephemeral=True)
 
     def remove_embed(self):
         """

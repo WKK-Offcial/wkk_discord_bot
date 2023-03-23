@@ -24,6 +24,19 @@ jobs:
           pip install -r requirements.txt
       - name: Run PyLint
         run: pylint ./src
+      - name: Test Run Boi
+        run: |
+          python src/main.py &
+          sleep 20
+          kill "$!"
+        env:
+          DISCORD_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}
+          WAVELINK_URL: ${{ secrets.WAVELINK_URL }}
+          WAVELINK_PORT: ${{ secrets.WAVELINK_PORT }}
+          WAVELINK_PASSWORD: ${{ secrets.WAVELINK_PASSWORD }}
 
   docker_build:
     name: Build and push docker container

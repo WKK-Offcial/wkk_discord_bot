@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from main import BoiBot
 
 
-def my_third_decorator(func):
+def ChannelControlCheck(func):
     async def decorator(*args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
         if interaction is None:
@@ -25,7 +25,7 @@ def my_third_decorator(func):
 
         bot_vc, user_vc = interaction.guild.voice_client, interaction.user.voice
         if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
+            await interaction.response.send_message("You can't control the bot because you're not on the voice channel",
                                                     delete_after=3, ephemeral=True)
             return
         await func(*args, **kwargs)
@@ -246,16 +246,12 @@ class PlayerControlView(discord.ui.View):
         self.active = True
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
+    @ChannelControlCheck
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Skip track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if bot_vc.is_playing():
             await bot_vc.stop()
@@ -265,16 +261,12 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
+    @ChannelControlCheck
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Pause/resume the player on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if not bot_vc.is_paused():
             await bot_vc.pause()
@@ -285,16 +277,12 @@ class PlayerControlView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
+    @ChannelControlCheck
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Stop track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if bot_vc.is_playing():
             bot_vc.queue.clear()
@@ -308,7 +296,7 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
                  
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
-    @my_third_decorator
+    @ChannelControlCheck
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density

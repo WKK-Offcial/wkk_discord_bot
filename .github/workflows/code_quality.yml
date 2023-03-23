@@ -18,3 +18,20 @@ jobs:
           pip install -r requirements.txt
       - name: Run PyLint
         run: pylint ./src
+      - name: Prepare TestBed
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libopus-dev
+      - name: Test Run
+        run: |
+          python src/main.py &
+          sleep 20
+          kill "$!"
+        env:
+          BOT_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}
+          WAVELINK_URL: ${{ secrets.WAVELINK_URL }}
+          WAVELINK_PORT: ${{ secrets.WAVELINK_PORT }}
+          WAVELINK_PASSWORD: ${{ secrets.WAVELINK_PASSWORD }}

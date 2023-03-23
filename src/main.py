@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sentry_sdk
 
 import discord
 import static_ffmpeg
@@ -25,6 +26,19 @@ elif os.name == 'posix':
     discord.opus.load_opus('libopus.so.0')
 if not discord.opus.is_loaded():
     raise RuntimeError('Opus failed to load!')
+
+if key := os.getenv("SENTRY_KEY", None):
+    sentry_sdk.init(
+      dsn=key,
+      # Set tracesSampleRate to 1.0 to capture 100%
+      # of transactions for performance monitoring.
+      # We recommend adjusting this value in production
+      traces_sample_rate=1.0,
+      _experiments={
+            "profiles_sample_rate": 1.0,
+        }
+    )
+
 
 # Create bot and cogs
 bot = BoiBot()

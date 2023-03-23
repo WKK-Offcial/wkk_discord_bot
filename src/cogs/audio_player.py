@@ -17,6 +17,23 @@ if TYPE_CHECKING:
     from main import BoiBot
 
 
+def ChannelControlCheck(func):
+    async def decorator(*args, **kwargs):
+        interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
+        if interaction is None:
+            raise ValueError("dupa")
+
+        bot_vc, user_vc = interaction.guild.voice_client, interaction.user.voice
+        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
+            await interaction.response.send_message("You can't control the bot because you're not on the voice channel",
+                                                    delete_after=3, ephemeral=True)
+            return
+        await func(*args, **kwargs)
+
+    return decorator
+
+
+
 class AudioPlayer(commands.Cog):
     """
     Class for music commands.
@@ -229,16 +246,12 @@ class PlayerControlView(discord.ui.View):
         self.active = True
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
+    @ChannelControlCheck
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Skip track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if bot_vc.is_playing():
             await bot_vc.stop()
@@ -248,16 +261,12 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
+    @ChannelControlCheck
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Pause/resume the player on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if not bot_vc.is_paused():
             await bot_vc.pause()
@@ -268,16 +277,12 @@ class PlayerControlView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
+    @ChannelControlCheck
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Stop track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
 
         if bot_vc.is_playing():
             bot_vc.queue.clear()
@@ -291,9 +296,10 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
                  
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
+    @ChannelControlCheck
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
-        Czwarta gęstość
+        fourth density
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
         user_vc = interaction.user.voice
@@ -303,10 +309,10 @@ class PlayerControlView(discord.ui.View):
             return
         if bot_vc.is_playing():
             filter_ = wavelink.Filter(
-                        tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
-                        vibrato=wavelink.Vibrato(frequency=14,depth=1),
-                        timescale=wavelink.Timescale(pitch=0.8)
-                        ) 
+                tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
+                vibrato=wavelink.Vibrato(frequency=14, depth=1),
+                timescale=wavelink.Timescale(pitch=0.8)
+            )
             no_filter = wavelink.Filter()
             await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
             button.label = '' if bot_vc.filter else 'ඞ'
@@ -315,10 +321,10 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-            
+
     def remove_embed(self):
         """
-        Removes embed with audio player informations
+        Removes embed with audio player information
         """
         if self.embed_handle:
             coro = self.embed_handle.delete()

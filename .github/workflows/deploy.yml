@@ -22,8 +22,15 @@ jobs:
           pip install --upgrade pip
           pip install -r dev-requirements.txt
           pip install -r requirements.txt
+
       - name: Run PyLint
         run: pylint ./src
+
+      - name: Prepare TestBed
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libopus-dev
+
       - name: Test Run Boi
         run: |
           python src/main.py &

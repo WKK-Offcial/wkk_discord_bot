@@ -291,8 +291,7 @@ class PlayerControlView(discord.ui.View):
                                                     delete_after=3, ephemeral=True)
                      
     #TODO 
-    # - make initial button style based on state of the filter. 
-    #  - If bot stops playing with filter on then joins again the button is gray even tho the filter is on.
+    # - make initial button emoji based on state of the filter. 
                  
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -300,12 +299,17 @@ class PlayerControlView(discord.ui.View):
         Czwarta gęstość
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
+        user_vc = interaction.user.voice
+        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
+            await interaction.response.send_message("You cannot control the bot (check voice channel)",
+                                                    delete_after=3, ephemeral=True)
+            return
         if bot_vc.is_playing():
             filter_ = wavelink.Filter(vibrato=wavelink.Vibrato(frequency=14,depth=1)) # czwarta gęstość
             no_filter = wavelink.Filter()
             await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
-            button.style = discord.ButtonStyle.green if bot_vc.filter else discord.ButtonStyle.gray
-            button.label = button.label + 'ඞ'
+            button.label = '' if bot_vc.filter else 'ඞ'
+            button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088429038378430475>') if bot_vc.filter else None
             await interaction.response.edit_message(view=self)
         else:
             await interaction.response.send_message("Nothing is playing right now",

@@ -293,7 +293,7 @@ class PlayerControlView(discord.ui.View):
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
-        Czwarta gęstość
+        fourth density
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
         user_vc = interaction.user.voice
@@ -318,7 +318,7 @@ class PlayerControlView(discord.ui.View):
             
     def remove_embed(self):
         """
-        Removes embed with audio player informations
+        Removes embed with audio player information
         """
         if self.embed_handle:
             coro = self.embed_handle.delete()

@@ -198,8 +198,8 @@ class AudioPlayer(commands.Cog):
         try:
             youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search)
             if youtube_playlist_regex and youtube_playlist_regex.groups():
-                playlist_id = str(youtube_playlist_regex.groups()[0])
-                playlist = await wavelink.YouTubePlaylist.search(playlist_id, return_first=True)
+                safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
+                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
                 for track in playlist.tracks:
                     await bot_vc.queue.put_wait(track)
                 audio_track = playlist.tracks[0]
@@ -223,7 +223,8 @@ class AudioPlayer(commands.Cog):
                 # We need to extract vid id because wavelink does not support shortened links
                 video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
                 if video_id_regex and video_id_regex.groups()[0]:
-                    audio_track = await wavelink.YouTubeTrack.search(video_id_regex.groups()[0], return_first=True)
+                    safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
+                    audio_track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
                 else:
                     audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
                 await bot_vc.queue.put_wait(audio_track)
@@ -451,26 +452,6 @@ class PlayerControlView(PlayerView):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-<<<<<<< HEAD
-
-    def remove_embed(self):
-        """
-        Removes embed with audio player information
-        """
-        if self.embed_handle:
-            coro = self.embed_handle.delete()
-            self.stop()
-            self.clear_items()
-            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-
-    async def send_embed(self, bot_vc: wavelink.Player):
-        """
-        Removes last message and sends new one to keep it on the bottom of the chat
-        """
-        if self.embed_handle:
-            await self.embed_handle.delete()
-=======
->>>>>>> eebc1a07823f614fe076c5d8c8c9ddea23c1fee2
 
     async def make_embed(self, text_channel) -> discord.Embed:
         # Calculate queue time length

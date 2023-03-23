@@ -294,7 +294,7 @@ class PlayerControlView(discord.ui.View):
         else:
             await interaction.response.send_message("Nothing is playing right now",
                                                     delete_after=3, ephemeral=True)
-                 
+
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     @ChannelControlCheck
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -316,7 +316,7 @@ class PlayerControlView(discord.ui.View):
             no_filter = wavelink.Filter()
             await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
             button.label = '' if bot_vc.filter else 'ඞ'
-            button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088429038378430475>') if bot_vc.filter else None
+            button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if bot_vc.filter else None
             await interaction.response.edit_message(view=self)
         else:
             await interaction.response.send_message("Nothing is playing right now",

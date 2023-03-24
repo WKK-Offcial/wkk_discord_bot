@@ -13,11 +13,11 @@ import wavelink
 if TYPE_CHECKING:
     from main import DiscordBot
 
-
-def ChannelControlCheck(func):
+def channel_control_check(func):
     """
     Decorator used to check whether player is able to use audio player controls.
     (Must be in the same voice channel)
+    Executes decorated function only if check passed
     """
     async def decorator(*args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
@@ -33,7 +33,23 @@ def ChannelControlCheck(func):
 
     return decorator
 
+def is_playing_check(func):
+    """
+    Decorator for checking if bot is playing something.
+    Executes decorated function only if check passed
+    """
+    async def decorator(*args, **kwargs):
+        interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
+        if interaction is None:
+            raise ValueError("Interaction is None")
 
+        bot_vc = interaction.guild.voice_client
+        if not bot_vc.is_playing():
+            await interaction.response.send_message("Nothing is playing right now",
+                                                        delete_after=3, ephemeral=True)
+            return
+        await func(*args, **kwargs)
+    return decorator
 
 class PlayerState:
     """
@@ -180,22 +196,18 @@ class PlayerControlView(PlayerView):
         super().__init__(player_state)
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
-    @ChannelControlCheck
+    @channel_control_check
+    @is_playing_check
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Skip track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-
-        if bot_vc.is_playing():
-            await bot_vc.stop()
-            await interaction.response.defer()
-        else:
-            await interaction.response.send_message("Nothing is playing right now",
-                                                    delete_after=3, ephemeral=True)
+        await bot_vc.stop()
+        await interaction.response.defer()
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
-    @ChannelControlCheck
+    @channel_control_check
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Pause/resume the player on button press
@@ -211,47 +223,33 @@ class PlayerControlView(PlayerView):
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
-    @ChannelControlCheck
+    @channel_control_check
+    @is_playing_check
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Stop track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-
-        if bot_vc.is_playing():
-            bot_vc.queue.clear()
-            await bot_vc.stop()
-            await interaction.response.defer()
-        else:
-            await interaction.response.send_message("Nothing is playing right now",
-                                                    delete_after=3, ephemeral=True)
+        bot_vc.queue.clear()
+        await bot_vc.stop()
+        await interaction.response.defer()
 
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
-    @ChannelControlCheck
+    @channel_control_check
+    @is_playing_check
     async def filter(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        user_vc = interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
-            return
-        if bot_vc.is_playing():
-            filter_ = wavelink.Filter(
-                tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
-                vibrato=wavelink.Vibrato(frequency=14, depth=1),
-                timescale=wavelink.Timescale(pitch=0.8)
-            )
-            no_filter = wavelink.Filter()
-            await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
-            button.label = '' if bot_vc.filter else 'ඞ'
-            button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if bot_vc.filter else None
-            await interaction.response.edit_message(view=self)
-        else:
-            await interaction.response.send_message("Nothing is playing right now",
-                                                    delete_after=3, ephemeral=True)
+        filter_ = wavelink.Filter(tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
+                                  vibrato=wavelink.Vibrato(frequency=14, depth=1),
+                                  timescale=wavelink.Timescale(pitch=0.8))
+        no_filter = wavelink.Filter()
+        await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
+        button.label = '' if bot_vc.filter else 'ඞ'
+        button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if bot_vc.filter else None
+        await interaction.response.edit_message(view=self)
 
     async def make_embed(self, text_channel: discord.TextChannel) -> discord.Embed:
         # Calculate queue time length

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from cogs.audio_player import AudioPlayer, PlayerState
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
-from utils.boi_bot import BoiBot
+from utils.discord_bot import DiscordBot
 
 # Set up logger
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +41,7 @@ if key := os.getenv("SENTRY_KEY", None):
 
 
 # Create bot and cogs
-bot = BoiBot()
+bot = DiscordBot()
 bot_admin = BotAdmin(bot)
 audio_player = AudioPlayer(bot)
 users_related = UsersRelated(bot)

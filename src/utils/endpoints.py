@@ -13,7 +13,7 @@ server = f"http://{os.getenv('SERVER_IP')}:{os.getenv('SERVER_PORT')}"
 
 class Endpoints():
     """
-    Class for commands related with users
+    HTTP communication with audio server
     """
 
     @staticmethod

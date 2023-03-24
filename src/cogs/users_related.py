@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 if TYPE_CHECKING:
-    from main import BoiBot
+    from main import DiscordBot
 
 
 class UsersRelated(commands.Cog):
@@ -15,9 +15,9 @@ class UsersRelated(commands.Cog):
     Class for commands related with users
     """
 
-    def __init__(self, bot: BoiBot) -> None:
+    def __init__(self, bot: DiscordBot) -> None:
         super().__init__()
-        self.bot: BoiBot = bot
+        self.bot: DiscordBot = bot
 
     @app_commands.command(name="avatar")
     async def avatar(self, interaction: discord.Interaction, member: discord.Member = None) -> None:

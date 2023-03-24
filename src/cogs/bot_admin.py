@@ -9,17 +9,17 @@ from discord.ext import commands
 from discord.ext.commands import Greedy, Context
 
 if TYPE_CHECKING:
-    from main import BoiBot
+    from main import DiscordBot
 
 
 class BotAdmin(commands.Cog):
     """
-    Class used for controlling the bot as admin
+    Class used for administrative bot commands
     """
 
-    def __init__(self, bot: BoiBot) -> None:
+    def __init__(self, bot: DiscordBot) -> None:
         super().__init__()
-        self.bot: BoiBot = bot
+        self.bot: DiscordBot = bot
 
         # Implement meta functions
         @self.bot.command()
@@ -64,7 +64,7 @@ class BotAdmin(commands.Cog):
         @commands.guild_only()
         async def restart(ctx: Context) -> None:
             """
-            This command sync slash commands with discord
+            This command exits the program
             """
             logging.warning('Restart called from %d', ctx.guild.id)
             sys.exit()

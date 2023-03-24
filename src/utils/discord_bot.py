@@ -6,9 +6,9 @@ from discord import Intents
 from discord.ext import commands
 
 
-class BoiBot(commands.Bot):
+class DiscordBot(commands.Bot):
     """
-    Class inherited from Bot in order to add queues to it
+    Expands default bot class functionality
     """
 
     def __init__(self):

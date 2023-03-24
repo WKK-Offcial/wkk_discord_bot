@@ -80,7 +80,8 @@ class AudioPlayer(commands.Cog):
             logging.error(err)
 
     def _clear_state(self, guild_id: int) -> None:
-        self.states.pop(guild_id, None)
+        if self.states.get(guild_id) is not None:
+            self.states.pop(guild_id)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -154,7 +155,7 @@ class AudioPlayer(commands.Cog):
         """
         guild_id = payload.player.guild.id
         bot_vc = payload.player
-        state = self.states.get(guild_id)
+        state: PlayerState = self.states.get(guild_id)
         guild_queue = bot_vc.queue
         if guild_queue.count > 0:
             # Play next in queue

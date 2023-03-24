@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
+from threading import Timer
 from typing import TYPE_CHECKING, Callable
 
 import discord
@@ -12,36 +14,40 @@ from utils.decorators import channel_control_check, is_playing_check
 if TYPE_CHECKING:
     from main import DiscordBot
 
+
 class PlayerState:
     """
     Contains custom state related to the player
     """
-    def __init__(self, bot_vc: wavelink.Player, guild_id: int, bot: DiscordBot, cleanup: Callable[[], None]):
+    def __init__(self, bot_vc: wavelink.Player, guild_id: int, bot: DiscordBot, cleanup_callback: Callable[[], None]):
         self.active_view: PlayerView = None
         self.bot_vc: wavelink.Player = bot_vc
         self.guild_id: int = guild_id
         self.last_text_channel_used: discord.TextChannel = None
         self.bot = bot
-        self.killed = False
-        self.cleanup = cleanup
+        self.no_more_interactions = False
+        self.cleanup_callback = cleanup_callback
+        self.modification_count = 0
 
     async def transit_to_stopped_no_users(self) -> None:
         """
         Player stopped because all users left the channel
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self.modification_count = self.modification_count + 1
+        self._disable_this_player_state()
         self._destroy_current_embed()
         self.active_view = PlayerNoMoreUsersView(self)
         await self.active_view.send_embed(self.last_text_channel_used)
-        self._cleanup_self()
 
     async def create_control_view_if_does_not_exist(self, text_channel: discord.TextChannel) -> None:
         """
         Create control view
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self.modification_count = self.modification_count + 1
         self._destroy_current_embed()
         self.active_view = PlayerControlView(self)
         self.last_text_channel_used = text_channel
@@ -51,34 +57,40 @@ class PlayerState:
         """
         Send control view again
         """
-        if self.killed:
-            return
-        self._destroy_current_embed()
-        self.active_view = PlayerControlView(self)
-        await self.active_view.send_embed(self.last_text_channel_used)
+        await self.create_control_view_if_does_not_exist(self.last_text_channel_used)
 
     async def transit_to_queue_ended(self) -> None:
         """
         Player stopped because the queue has ended
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self.modification_count = self.modification_count + 1
         self._destroy_current_embed()
         self.active_view = PlayerEndedView(self)
         await self.active_view.send_embed(self.last_text_channel_used)
         # currently there is no sense to do anything for this view, but there will be an undo button here
-        self._cleanup_self() # <- second call to pop, raises exception
+        self._schedule_if_no_more_interactions(self._destroy_current_embed)
+        self._schedule_if_no_more_interactions(self._disable_this_player_state)
 
     def _destroy_current_embed(self) -> None:
         if self.active_view is not None:
             self.active_view.stop()
             self.active_view.remove_embed()
 
-    def _cleanup_self(self) -> None:
+    def _disable_this_player_state(self) -> None:
         self.active_view.stop()
-        self.killed = True
-        self.cleanup()
+        self.no_more_interactions = True
+        self.cleanup_callback()
 
+    def _schedule_if_no_more_interactions(self, job: Callable[[], None]) -> None:
+        current_modification_count = self.modification_count
+        Timer(15.0, lambda: self._do_if_no_more_interactions(current_modification_count, job))
+
+    def _do_if_no_more_interactions(self, expected_modification_count: int, job: Callable[[], None]):
+        if self.modification_count != expected_modification_count:
+            return  # there has been some interaction with this player since it was scheduled, no point in doing it
+        job()
 
 class PlayerView(discord.ui.View):
     def __init__(self, player_state: PlayerState):
@@ -143,7 +155,7 @@ class PlayerEndedView(PlayerView):
 
     async def make_embed(self, text_channel: discord.TextChannel) -> discord.Embed:
         embed = await self._generate_embed_with_defaults()
-        embed.add_field(name='Nothing is being played. The queue has ended.', value='', inline=True)
+        embed.add_field(name='The queue has ended.', value='', inline=True)
         await self._add_footer(embed)
         return await text_channel.send(embed=embed, view=self, delete_after=60)
 

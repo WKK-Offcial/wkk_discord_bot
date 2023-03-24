@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.endpoints import Endpoints
 from views.audio_player_view import PlayerState
+from utils.decorators import is_playing_check, channel_control_check
 
 if TYPE_CHECKING:
     from main import DiscordBot
@@ -116,6 +117,8 @@ class AudioPlayer(commands.Cog):
 
     @commands.guild_only()
     @app_commands.command(name="volume")
+    @channel_control_check
+    @is_playing_check
     async def set_volume(self, interaction: discord.Interaction, value: int):
         """
         Set volume. Range: 0-100
@@ -123,13 +126,9 @@ class AudioPlayer(commands.Cog):
         if value < 0 or value > 100:
             await interaction.response.send_message("Value must be between 0 and 100", ephemeral=True, delete_after=3)
             return
-
         bot_vc: wavelink.Player = interaction.guild.voice_client
-        if bot_vc:
-            await bot_vc.set_volume(value)
-            await interaction.response.send_message(f"Value set to {value}", delete_after=15)
-        else:
-            await interaction.response.send_message("Bot must be in voice channel", ephemeral=True, delete_after=3)
+        await bot_vc.set_volume(value)
+        await interaction.response.send_message(f"Value set to {value}", delete_after=15)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()

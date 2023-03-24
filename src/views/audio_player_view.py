@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+from threading import Timer
 from typing import TYPE_CHECKING, Callable
 
 import discord
 import wavelink
 
 from utils.decorators import channel_control_check, is_playing_check
+from wavelink import Queue, Playable
 
 if TYPE_CHECKING:
     from main import DiscordBot
@@ -16,68 +18,155 @@ class PlayerState:
     """
     Contains custom state related to the player
     """
-    def __init__(self, bot_vc: wavelink.Player, guild_id: int, bot: DiscordBot, cleanup: Callable[[], None]):
+    def __init__(self, bot_vc: wavelink.Player, guild_id: int, bot: DiscordBot, cleanup_callback: Callable[[], None]):
         self.active_view: PlayerView = None
         self.bot_vc: wavelink.Player = bot_vc
         self.guild_id: int = guild_id
         self.last_text_channel_used: discord.TextChannel = None
         self.bot = bot
-        self.killed = False
-        self.cleanup = cleanup
+        self.no_more_interactions = False
+        self.cleanup_callback = cleanup_callback
+        self.modification_count = 0
+        self.can_undo = False
+        self.should_remove_undo_queue = True
+        self.time_skipped_for_undo: int = None
+        self.skipped_song_for_undo: Playable = None
+        self.queue_for_undo: Queue = None
 
     async def transit_to_stopped_no_users(self) -> None:
         """
         Player stopped because all users left the channel
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self._on_transition()
+        self._disable_this_player_state()
         self._destroy_current_embed()
         self.active_view = PlayerNoMoreUsersView(self)
         await self.active_view.send_embed(self.last_text_channel_used)
-        self._cleanup_self()
 
     async def create_control_view_if_does_not_exist(self, text_channel: discord.TextChannel) -> None:
         """
         Create control view
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self._on_transition()
         self._destroy_current_embed()
         self.active_view = PlayerControlView(self)
         self.last_text_channel_used = text_channel
         await self.active_view.send_embed(text_channel)
 
+    async def undo_song_skip(self):
+        if self.no_more_interactions:
+            return
+        if not self.can_undo:
+            return
+
+        current_song = self.bot_vc.current
+
+        if self.queue_for_undo is None:
+            # do not use preserved queue for undo (probably a single track was skipped, some songs might have been
+            # added in the meantime)
+            songs_to_skip_for_undo = len(self.bot_vc.queue)
+
+            await self.bot_vc.queue.put_wait(self.skipped_song_for_undo)
+            if current_song is not None:
+                await self.bot_vc.queue.put_wait(current_song)
+
+            for i in range(songs_to_skip_for_undo):
+                await self.bot_vc.queue.put_wait(self.bot_vc.queue[i])
+
+            for i in range(songs_to_skip_for_undo):
+                self.bot_vc.queue.pop()
+
+            await self.bot_vc.stop()  # just skip the current song
+            # audio player should handle the actual restart, otherwise it will go haywire
+        else:
+            # undo using queue (probably playing stopped)
+
+            self.bot_vc.queue.clear()
+            for track in self.queue_for_undo:
+                await self.bot_vc.queue.put_wait(track)
+
+            # have to restart the player
+            next_audio_track = await self.bot_vc.queue.get_wait()
+            await self.bot_vc.stop()
+            await self.bot_vc.play(next_audio_track, start=self.time_skipped_for_undo)
+            await self.resend_control_view()
+
+        self.can_undo = False  # do not remove all data yet, as we can get polled by the audio_player
+
+    def get_suggested_time_to_start_the_song(self, track: Playable) -> int | None:
+        if self.skipped_song_for_undo == track:
+            return self.time_skipped_for_undo
+        return None
+
     async def resend_control_view(self) -> None:
         """
         Send control view again
         """
-        if self.killed:
-            return
-        self._destroy_current_embed()
-        self.active_view = PlayerControlView(self)
-        await self.active_view.send_embed(self.last_text_channel_used)
+        await self.create_control_view_if_does_not_exist(self.last_text_channel_used)
 
     async def transit_to_queue_ended(self) -> None:
         """
         Player stopped because the queue has ended
         """
-        if self.killed:
+        if self.no_more_interactions:
             return
+        self._on_transition()
         self._destroy_current_embed()
         self.active_view = PlayerEndedView(self)
         await self.active_view.send_embed(self.last_text_channel_used)
         # currently there is no sense to do anything for this view, but there will be an undo button here
-        self._cleanup_self() # <- second call to pop, raises exception
+        self._schedule_if_no_more_interactions(self._destroy_current_embed)
+        self._schedule_if_no_more_interactions(self._disable_this_player_state)
 
     def _destroy_current_embed(self) -> None:
         if self.active_view is not None:
             self.active_view.stop()
             self.active_view.remove_embed()
 
-    def _cleanup_self(self) -> None:
+    def _disable_this_player_state(self) -> None:
         self.active_view.stop()
-        self.killed = True
-        self.cleanup()
+        self.no_more_interactions = True
+        self.cleanup_callback()
+
+    def _schedule_if_no_more_interactions(self, job: Callable[[], None]) -> None:
+        current_modification_count = self.modification_count
+        Timer(15.0, lambda: self._do_if_no_more_interactions(current_modification_count, job))
+
+    def _do_if_no_more_interactions(self, expected_modification_count: int, job: Callable[[], None]):
+        if self.modification_count != expected_modification_count:
+            return  # there has been some interaction with this player since it was scheduled, no point in doing it
+        job()
+
+    def _on_transition(self):
+        self.modification_count = self.modification_count + 1
+        if self.should_remove_undo_queue:
+            self._remove_undo_data()
+        self.should_remove_undo_queue = True
+
+    def _remove_undo_data(self):
+        self.time_skipped_for_undo = None
+        self.skipped_song_for_undo = None
+        self.can_undo = False
+        self.queue_for_undo = None
+
+    async def skipped_current_song(self, preserve_queue: bool):
+        """
+        Current song(s) was/were skipped. If preserve_queue is true, it means that probably playing has stopped fully,
+        and as such there will be no queue in the future - this object should preserve it
+        """
+        self.can_undo = True
+        self.should_remove_undo_queue = False  # preserve undo queue for one songs length
+        self.time_skipped_for_undo = self.bot_vc.last_position
+        self.skipped_song_for_undo = self.bot_vc.current
+        if preserve_queue:
+            self.queue_for_undo = Queue()
+            await self.queue_for_undo.put_wait(self.bot_vc.current)
+            for track in self.bot_vc.queue:
+                await self.queue_for_undo.put_wait(track)
 
 
 class PlayerView(discord.ui.View):
@@ -117,6 +206,19 @@ class PlayerView(discord.ui.View):
                              color=0x00ff00,
                              timestamp=datetime.datetime.now(datetime.timezone.utc))
 
+    @discord.ui.button(label='↶ Undo', style=discord.ButtonStyle.blurple)
+    @channel_control_check
+    async def undo_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Undo a song skip.
+        """
+        if self.player_state.can_undo:
+            await interaction.response.defer()
+            await self.player_state.undo_song_skip()
+        else:
+            await interaction.response.send_message("Nothing to undo",
+                                                    delete_after=3, ephemeral=True)
+
 
 class PlayerNoMoreUsersView(PlayerView):
     """
@@ -143,7 +245,7 @@ class PlayerEndedView(PlayerView):
 
     async def make_embed(self, text_channel: discord.TextChannel) -> discord.Embed:
         embed = await self._generate_embed_with_defaults()
-        embed.add_field(name='Nothing is being played. The queue has ended.', value='', inline=True)
+        embed.add_field(name='The queue has ended', value=':(', inline=True)
         await self._add_footer(embed)
         return await text_channel.send(embed=embed, view=self, delete_after=60)
 
@@ -164,6 +266,7 @@ class PlayerControlView(PlayerView):
         Skip track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
+        await self.player_state.skipped_current_song(preserve_queue=False)
         await bot_vc.stop()
         await interaction.response.defer()
 
@@ -191,6 +294,7 @@ class PlayerControlView(PlayerView):
         Stop track on button press
         """
         bot_vc: wavelink.Player = interaction.guild.voice_client
+        await self.player_state.skipped_current_song(preserve_queue=True)
         bot_vc.queue.clear()
         await bot_vc.stop()
         await interaction.response.defer()

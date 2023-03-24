@@ -80,7 +80,8 @@ class AudioPlayer(commands.Cog):
             logging.error(err)
 
     def _clear_state(self, guild_id: int) -> None:
-        self.states.pop(guild_id, None)
+        if self.states.get(guild_id) is not None:
+            self.states.pop(guild_id)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -154,12 +155,17 @@ class AudioPlayer(commands.Cog):
         """
         guild_id = payload.player.guild.id
         bot_vc = payload.player
-        state = self.states.get(guild_id)
+        state: PlayerState = self.states.get(guild_id)
         guild_queue = bot_vc.queue
         if guild_queue.count > 0:
             # Play next in queue
             next_audio_track = await guild_queue.get_wait()
-            await bot_vc.play(next_audio_track)
+            # ugly hack, because for some reason everything gets confused if we restart the played elsewhere - although
+            # songs added to queue with a time, should also have their custom starting time preserved somehow
+            if state.get_suggested_time_to_start_the_song(next_audio_track) is not None:
+                await bot_vc.play(next_audio_track, start=state.get_suggested_time_to_start_the_song(next_audio_track))
+            else:
+                await bot_vc.play(next_audio_track)
             # Update embed
             await state.resend_control_view()
         elif state:

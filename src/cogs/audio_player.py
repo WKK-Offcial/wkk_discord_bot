@@ -160,7 +160,12 @@ class AudioPlayer(commands.Cog):
         if guild_queue.count > 0:
             # Play next in queue
             next_audio_track = await guild_queue.get_wait()
-            await bot_vc.play(next_audio_track)
+            # ugly hack, because for some reason everything gets confused if we restart the played elsewhere - although
+            # songs added to queue with a time, should also have their custom starting time preserved somehow
+            if state.get_suggested_time_to_start_the_song(next_audio_track) is not None:
+                await bot_vc.play(next_audio_track, start=state.get_suggested_time_to_start_the_song(next_audio_track))
+            else:
+                await bot_vc.play(next_audio_track)
             # Update embed
             await state.resend_control_view()
         elif state:

@@ -103,7 +103,7 @@ jobs:
           fi
           docker pull $DOCKER_BOI_IMAGE
           docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME || true
-          docker run --restart on-failure \
+          docker run --restart unless-stopped \
           --detach \
           --network="wkk-network" \
           -e BOT_TOKEN=$DISCORD_TOKEN \

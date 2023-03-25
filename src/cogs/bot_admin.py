@@ -5,6 +5,7 @@ import sys
 from typing import TYPE_CHECKING, Literal, Optional
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Greedy, Context
 
@@ -60,11 +61,12 @@ class BotAdmin(commands.Cog):
 
             await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
-        @self.bot.command()
-        @commands.guild_only()
-        async def restart(ctx: Context) -> None:
-            """
-            This command exits the program
-            """
-            logging.warning('Restart called from %d', ctx.guild.id)
-            sys.exit()
+    @commands.guild_only()
+    @app_commands.command(name="restart")
+    async def restart_bot(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
+        """
+        This command exits the program which should automatically reboot the container
+        """
+        interaction.response.send_message(content="BRB")
+        logging.warning('Restart called from %d', interaction.guild.id)
+        sys.exit()

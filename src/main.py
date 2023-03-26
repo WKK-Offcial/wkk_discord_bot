@@ -9,8 +9,7 @@ from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
 from utils.discord_bot import DiscordBot
-from utils.wavelink_player import WavelinkPlayer
-from views.audio_player_view import PlayerControlView
+from utils.misc import delay_coro
 
 # Set up logger
 logging.basicConfig(level=logging.INFO)
@@ -38,45 +37,56 @@ if key := os.getenv("SENTRY_KEY", None):
         }
     )
 
-
-# Create bot and cogs
-bot = DiscordBot()
-bot_admin = BotAdmin(bot)
-audio_player = AudioPlayer(bot)
-users_related = UsersRelated(bot)
-
-
-# Setup events
-@bot.event
-async def on_ready():
+class Bot:
     """
-    Event that occurrence one time when bot is ready to work
+    Main Bot class
     """
-    logging.info('Logged in as %s (ID: %d)\n-----------\n', bot.user, bot.user.id)
+    def __init__(self) -> None:
+        self.bot = DiscordBot()
+        self.create_cogs()
+        self.setup_events()
 
+    def create_cogs(self):
+        """
+        Create Cogs
+        """
+        self.bot_admin = BotAdmin(self.bot)
+        self.audio_player = AudioPlayer(self.bot)
+        self.users_related = UsersRelated(self.bot)
 
-@bot.event
-async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-    """
-    Event that occurrence whenever someone leaves/joins vc
-    """
-    voice_state = member.guild.voice_client
-    # Checking if the bot is connected to a channel and if there is only 1 member connected to it (the bot itself)
-    if voice_state is not None and len(voice_state.channel.members) == 1:
-        view: PlayerControlView = audio_player.views.get(member.guild.id)
-        bot_vc: WavelinkPlayer = member.guild.voice_client
-    # TODO: Timeout for embed and player disconnect
+    def setup_events(self):
+        """
+        Setup events
+        """
+        @self.bot.event
+        async def on_ready():
+            """
+            Event that occurrence one time when bot is ready to work
+            """
+            logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
 
-async def main():
-    """
-    Main boot start function
-    """
-    discord.utils.setup_logging(level=logging.WARNING, root=False)
-    # Load cogs
-    async with bot:
-        await bot.add_cog(bot_admin)
-        await bot.add_cog(users_related)
-        await bot.add_cog(audio_player)
-        await bot.start(os.getenv('BOT_TOKEN'))
+        @self.bot.event
+        async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+            """
+            Event that occurrence whenever someone leaves/joins vc
+            """
+            voice_state = member.guild.voice_client
+            # Checking if the bot is connected to a channel
+            # and if there is only 1 member connected to it (the bot itself)
+            if voice_state is not None and len(voice_state.channel.members) == 1:
+                await delay_coro(coro=self.audio_player.remove_view_and_disconnect(member.guild.id), seconds=60)
 
-asyncio.run(main())
+    async def run(self):
+        """
+        Main boot start function
+        """
+        discord.utils.setup_logging(level=logging.WARNING, root=False)
+        # Load cogs
+        async with self.bot:
+            await self.bot.add_cog(self.bot_admin)
+            await self.bot.add_cog(self.users_related)
+            await self.bot.add_cog(self.audio_player)
+            await self.bot.start(os.getenv('BOT_TOKEN'))
+
+bot = Bot()
+asyncio.run(bot.run())

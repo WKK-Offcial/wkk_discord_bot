@@ -167,7 +167,6 @@ class PlayerControlView(discord.ui.View):
         self.undo_button.disabled = False
         self.controls_enabled = True
 
-
     def remove_view(self):
         """
         Removes embed with audio player information

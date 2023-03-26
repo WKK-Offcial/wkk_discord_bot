@@ -5,9 +5,10 @@ import datetime
 from typing import TYPE_CHECKING
 
 import discord
+from discord.ext import commands
 import wavelink
 from utils.wavelink_player import WavelinkPlayer
-from utils.decorators import user_bot_in_same_channel_check, is_playing_check
+from utils.decorators import user_bot_in_same_channel_check, is_playing_check, button_cooldown
 
 if TYPE_CHECKING:
     from main import BoiBot
@@ -16,7 +17,6 @@ class PlayerControlView(discord.ui.View):
     """
     View class for controlling audio player through view
     """
-
     def __init__(self, bot: BoiBot, guild_id: int, text_channel: discord.TextChannel):
         super().__init__(timeout=None)
         self.bot: BoiBot = bot
@@ -25,9 +25,11 @@ class PlayerControlView(discord.ui.View):
         self.embed_handle: discord.Message = None
         self.active = True
         self.controls_enabled = True
+        self._cooldown = commands.CooldownMapping.from_cooldown(rate = 1, per = 1, type = commands.BucketType.channel)
 
     @discord.ui.button(label='◀◀ Undo', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
+    @button_cooldown
     async def undo_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Undo a song skip.
@@ -57,6 +59,7 @@ class PlayerControlView(discord.ui.View):
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
+    @button_cooldown
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Pause/resume the player on button press
@@ -75,6 +78,7 @@ class PlayerControlView(discord.ui.View):
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Skip track on button press
@@ -93,6 +97,7 @@ class PlayerControlView(discord.ui.View):
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Stop track on button press
@@ -115,6 +120,7 @@ class PlayerControlView(discord.ui.View):
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def filter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density

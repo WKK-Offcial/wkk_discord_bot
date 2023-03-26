@@ -152,6 +152,7 @@ class PlayerControlView(discord.ui.View):
         self.stop_button.disabled = True
         self.pause_button.disabled = True
         self.filter_button.disabled = True
+        self.filter_button.label = 'ඞ'
         self.controls_enabled = False
 
     def enable_control_buttons(self):
@@ -166,7 +167,7 @@ class PlayerControlView(discord.ui.View):
         self.controls_enabled = True
 
 
-    def remove_embed(self):
+    def remove_view(self):
         """
         Removes embed with audio player information
         """

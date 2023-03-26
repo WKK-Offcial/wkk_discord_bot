@@ -15,7 +15,7 @@ from utils.decorators import user_is_in_voice_channel_check
 from views.audio_player_view import PlayerControlView
 
 if TYPE_CHECKING:
-    from main import BoiBot
+    from main import DiscordBot
 
 class AudioPlayer(commands.Cog):
     """
@@ -23,8 +23,8 @@ class AudioPlayer(commands.Cog):
     self.views is dictionary that holds handle to a message with audio controls view {guild_id:view},
     """
 
-    def __init__(self, bot: BoiBot) -> None:
-        self.bot: BoiBot = bot
+    def __init__(self, bot: DiscordBot) -> None:
+        self.bot: DiscordBot = bot
         self.views: dict[int, PlayerControlView] = {}
         self.history: dict[int, list[tuple[wavelink.Playable, int]]] = {}
 
@@ -185,8 +185,6 @@ class AudioPlayer(commands.Cog):
             await view.send_embed(bot_vc)
 
         elif view:
-            # view.remove_embed()
-            # self.views.pop(guild_id)
             # Update view
             await bot_vc.set_filter(wavelink.Filter())
             view.disable_control_buttons()

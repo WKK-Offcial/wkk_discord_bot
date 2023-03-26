@@ -2,16 +2,14 @@ import asyncio
 import logging
 import os
 import sentry_sdk
-
 import discord
 import static_ffmpeg
-import wavelink
 from dotenv import load_dotenv
-
 from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
 from utils.discord_bot import DiscordBot
+from utils.wavelink_player import WavelinkPlayer
 from views.audio_player_view import PlayerControlView
 
 # Set up logger
@@ -65,14 +63,9 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
     voice_state = member.guild.voice_client
     # Checking if the bot is connected to a channel and if there is only 1 member connected to it (the bot itself)
     if voice_state is not None and len(voice_state.channel.members) == 1:
-        state: PlayerControlView = audio_player.views.get(member.guild.id)
-        bot_vc: wavelink.Player = member.guild.voice_client
-        if bot_vc.is_playing():
-            bot_vc.queue.clear()
-            await bot_vc.stop()
-        await state.transit_to_stopped_no_users()
-        await voice_state.disconnect()
-
+        view: PlayerControlView = audio_player.views.get(member.guild.id)
+        bot_vc: WavelinkPlayer = member.guild.voice_client
+    # TODO: Timeout for embed and player disconnect
 
 async def main():
     """

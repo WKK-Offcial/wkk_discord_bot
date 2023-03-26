@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import discord
 import wavelink
+from wavelink import InvalidLavalinkResponse
 from discord import app_commands
 from discord.ext import commands
 from utils.endpoints import Endpoints
@@ -81,6 +82,12 @@ class AudioPlayer(commands.Cog):
             logging.error(err)
         except TypeError as err:
             await interaction.edit_original_response(content="Type error!")
+            logging.error(err)
+        except InvalidLavalinkResponse as err:
+            #TODO: proper handling
+            #      restarting bot worked last time it happened.
+            #      check if simple reconnect to vc is enough if that happens again
+            await interaction.edit_original_response(content="InvalidLavalinkResponse!")
             logging.error(err)
 
     @commands.cooldown(rate=1, per=1)

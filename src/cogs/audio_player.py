@@ -15,7 +15,7 @@ from utils.decorators import user_is_in_voice_channel_check
 from views.audio_player_view import PlayerControlView
 
 if TYPE_CHECKING:
-    from main import BoiBot
+    from main import DiscordBot
 
 class AudioPlayer(commands.Cog):
     """
@@ -23,8 +23,8 @@ class AudioPlayer(commands.Cog):
     self.views is dictionary that holds handle to a message with audio controls view {guild_id:view},
     """
 
-    def __init__(self, bot: BoiBot) -> None:
-        self.bot: BoiBot = bot
+    def __init__(self, bot: DiscordBot) -> None:
+        self.bot: DiscordBot = bot
         self.views: dict[int, PlayerControlView] = {}
         self.history: dict[int, list[tuple[wavelink.Playable, int]]] = {}
 
@@ -176,7 +176,7 @@ class AudioPlayer(commands.Cog):
         if guild_queue.count > 0:
             # Play next in queue
             next_audio_track = await guild_queue.get_wait()
-            track_start_time = bot_vc.track_start_times[next_audio_track.title]
+            track_start_time = bot_vc.track_start_times.get(next_audio_track.title, 0)
             await bot_vc.play(next_audio_track, start=track_start_time)
             # Update view
             if not view.controls_enabled:
@@ -185,8 +185,6 @@ class AudioPlayer(commands.Cog):
             await view.send_embed(bot_vc)
 
         elif view:
-            # view.remove_embed()
-            # self.views.pop(guild_id)
             # Update view
             await bot_vc.set_filter(wavelink.Filter())
             view.disable_control_buttons()
@@ -204,8 +202,8 @@ class AudioPlayer(commands.Cog):
         try:
             youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search)
             if youtube_playlist_regex and youtube_playlist_regex.groups():
-                playlist_id = str(youtube_playlist_regex.groups()[0])
-                playlist = await wavelink.YouTubePlaylist.search(playlist_id, return_first=True)
+                safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
+                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
                 for track in playlist.tracks:
                     await bot_vc.queue.put_wait(track)
                 audio_track = playlist.tracks[0]
@@ -230,7 +228,8 @@ class AudioPlayer(commands.Cog):
                 # We need to extract vid id because wavelink does not support shortened links
                 video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
                 if video_id_regex and video_id_regex.groups()[0]:
-                    audio_track = await wavelink.YouTubeTrack.search(video_id_regex.groups()[0], return_first=True)
+                    safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
+                    audio_track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
                 else:
                     audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
 

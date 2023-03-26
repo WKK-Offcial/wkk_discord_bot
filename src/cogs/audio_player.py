@@ -202,8 +202,8 @@ class AudioPlayer(commands.Cog):
         try:
             youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search)
             if youtube_playlist_regex and youtube_playlist_regex.groups():
-                playlist_id = str(youtube_playlist_regex.groups()[0])
-                playlist = await wavelink.YouTubePlaylist.search(playlist_id, return_first=True)
+                safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
+                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
                 for track in playlist.tracks:
                     await bot_vc.queue.put_wait(track)
                 audio_track = playlist.tracks[0]
@@ -228,7 +228,8 @@ class AudioPlayer(commands.Cog):
                 # We need to extract vid id because wavelink does not support shortened links
                 video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
                 if video_id_regex and video_id_regex.groups()[0]:
-                    audio_track = await wavelink.YouTubeTrack.search(video_id_regex.groups()[0], return_first=True)
+                    safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
+                    audio_track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
                 else:
                     audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
 

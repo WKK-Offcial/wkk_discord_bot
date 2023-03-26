@@ -153,6 +153,7 @@ class PlayerControlView(discord.ui.View):
         self.pause_button.disabled = True
         self.filter_button.disabled = True
         self.filter_button.label = 'ඞ'
+        self.filter_button.emoji = None
         self.controls_enabled = False
 
     def enable_control_buttons(self):

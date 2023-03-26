@@ -15,8 +15,8 @@ def user_bot_in_same_channel_check(func):
 
         bot_vc, user_vc = interaction.guild.voice_client, interaction.user.voice
         if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You can't control the bot because you're not on the same voice channel",
-                                                    delete_after=3, ephemeral=True)
+            msg = "You can't control the bot because you're not on the same voice channel"
+            await interaction.response.send_message(msg, delete_after=3, ephemeral=True)
             return
         await func(*args, **kwargs)
 
@@ -66,7 +66,8 @@ def button_cooldown(func):
     """
     Decorator for setting cooldown for buttons.\n
     Executes decorated method if button is off cooldown.\n
-    The object of the decorated method has to have a property named _cooldown which determines the cooldown of the buttons.\n
+    The object of the decorated method has to have a property named _cooldown
+    which determines the cooldown of the buttons.
     """
     @functools.wraps(func)  # preserves signature of the function so it can be used in commands
     async def decorator(self, *args, **kwargs):

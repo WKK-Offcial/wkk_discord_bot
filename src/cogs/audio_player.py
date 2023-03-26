@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import logging
 import re
 from io import BytesIO
@@ -190,6 +189,19 @@ class AudioPlayer(commands.Cog):
             view.disable_control_buttons()
             view.undo_button.disabled = False
             await view.send_embed(bot_vc)
+
+    async def remove_view_and_disconnect(self, guild_id):
+        """
+        removes a view from given guild
+        """
+        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
+        # this check is performed once when reciving "on_voice_state_update"
+        # then once again here to give user the grace period before disconecting
+        if (bot_vc and len(bot_vc.channel.members) == 1):
+            await bot_vc.disconnect()
+            if (view := self.views.get(guild_id)):
+                view.remove_view()
+                self.views.pop(guild_id)
 
     async def _add_to_queue(self, search: str, bot_vc: WavelinkPlayer) -> tuple[wavelink.Playable | None, int]:
         """

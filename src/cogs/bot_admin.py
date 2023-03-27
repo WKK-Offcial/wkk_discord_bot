@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ext.commands import Greedy, Context
+from discord.ext.commands import Context, Greedy
 
 if TYPE_CHECKING:
     from main import DiscordBot
@@ -25,9 +25,9 @@ class BotAdmin(commands.Cog):
         # Implement meta functions
         @self.bot.command()
         @commands.guild_only()
-        async def sync(ctx: Context,
-                       guilds: Greedy[discord.Object],
-                       spec: Optional[Literal["~", "*", "^"]] = None) -> None:
+        async def sync(
+            ctx: Context, guilds: Greedy[discord.Object], spec: Optional[Literal["~", "*", "^"]] = None
+        ) -> None:
             """
             This command sync slash commands with discord
             """
@@ -45,9 +45,7 @@ class BotAdmin(commands.Cog):
                     synced = await ctx.bot.tree.sync()
 
                 is_spec = 'globally' if spec is None else 'to the current guild.'
-                await ctx.send(
-                    f"Synced {len(synced)} commands {is_spec}"
-                )
+                await ctx.send(f"Synced {len(synced)} commands {is_spec}")
                 return
 
             ret = 0

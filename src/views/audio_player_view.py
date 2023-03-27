@@ -5,18 +5,25 @@ import datetime
 from typing import TYPE_CHECKING
 
 import discord
-from discord.ext import commands
 import wavelink
+from discord.ext import commands
+
+from utils.decorators import (
+    button_cooldown,
+    is_playing_check,
+    user_bot_in_same_channel_check,
+)
 from utils.wavelink_player import WavelinkPlayer
-from utils.decorators import user_bot_in_same_channel_check, is_playing_check, button_cooldown
 
 if TYPE_CHECKING:
     from main import BoiBot
+
 
 class PlayerControlView(discord.ui.View):
     """
     View class for controlling audio player through view
     """
+
     def __init__(self, bot: BoiBot, guild_id: int, text_channel: discord.TextChannel):
         super().__init__(timeout=None)
         self.bot: BoiBot = bot
@@ -25,7 +32,7 @@ class PlayerControlView(discord.ui.View):
         self.embed_handle: discord.Message = None
         self.active = True
         self.controls_enabled = True
-        self._cooldown = commands.CooldownMapping.from_cooldown(rate = 1, per = 1, type = commands.BucketType.channel)
+        self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
     @discord.ui.button(label='◀◀ Undo', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
@@ -36,8 +43,7 @@ class PlayerControlView(discord.ui.View):
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
         if bot_vc.history.count == 0:
-            await interaction.response.send_message("Nothing was played before!",
-                                                    delete_after=3, ephemeral=True)
+            await interaction.response.send_message("Nothing was played before!", delete_after=3, ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -56,7 +62,6 @@ class PlayerControlView(discord.ui.View):
                 self.undo_button.disabled = True
             await self.send_embed(bot_vc)
 
-
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
     @button_cooldown
@@ -73,7 +78,6 @@ class PlayerControlView(discord.ui.View):
             await bot_vc.resume()
             button.label = '❚❚ Pause'
         await interaction.response.edit_message(view=self)
-
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
@@ -92,7 +96,6 @@ class PlayerControlView(discord.ui.View):
         # Skip song
         await bot_vc.stop()
         await interaction.response.defer()
-
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
     @user_bot_in_same_channel_check
@@ -116,7 +119,6 @@ class PlayerControlView(discord.ui.View):
         self.disable_control_buttons()
         await interaction.response.defer()
 
-
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     @user_bot_in_same_channel_check
     @is_playing_check
@@ -128,21 +130,21 @@ class PlayerControlView(discord.ui.View):
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
         user_vc = interaction.user.voice
         if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
-            await interaction.response.send_message("You cannot control the bot (check voice channel)",
-                                                    delete_after=3, ephemeral=True)
+            await interaction.response.send_message(
+                "You cannot control the bot (check voice channel)", delete_after=3, ephemeral=True
+            )
             return
 
         filter_ = wavelink.Filter(
             tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
             vibrato=wavelink.Vibrato(frequency=14, depth=1),
-            timescale=wavelink.Timescale(pitch=0.8)
+            timescale=wavelink.Timescale(pitch=0.8),
         )
         no_filter = wavelink.Filter()
         await bot_vc.set_filter(no_filter if bot_vc.filter else filter_)
         button.label = '' if bot_vc.filter else 'ඞ'
         button.emoji = discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if bot_vc.filter else None
         await interaction.response.edit_message(view=self)
-
 
     def disable_control_buttons(self):
         """
@@ -209,9 +211,7 @@ class PlayerControlView(discord.ui.View):
             queue_preview += f'{queue_time}\n'
 
         # Create new embed
-        embed = discord.Embed(title='The Boi',
-                              color=0x00ff00,
-                              timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed = discord.Embed(title='The Boi', color=0x00FF00, timestamp=datetime.datetime.now(datetime.timezone.utc))
         if bot_vc.queue.count > 0:
             embed.add_field(name='Queue:', value=queue_preview, inline=False)
         if now_playing:
@@ -222,7 +222,6 @@ class PlayerControlView(discord.ui.View):
         else:
             embed.add_field(name='Nothing is playing right now', value=':(', inline=True)
         embed.add_field(name='', value='▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁', inline=False)
-        embed.set_footer(text='2137',
-                         icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+        embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
 
         self.embed_handle = await self.text_channel.send(content=None, embed=embed, view=self)

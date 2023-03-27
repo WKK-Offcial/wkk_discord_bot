@@ -1,10 +1,12 @@
 import asyncio
 import logging
 import os
-import sentry_sdk
+
 import discord
+import sentry_sdk
 import static_ffmpeg
 from dotenv import load_dotenv
+
 from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
@@ -27,20 +29,22 @@ if not discord.opus.is_loaded():
 
 if key := os.getenv("SENTRY_KEY", None):
     sentry_sdk.init(
-      dsn=key,
-      # Set tracesSampleRate to 1.0 to capture 100%
-      # of transactions for performance monitoring.
-      # We recommend adjusting this value in production
-      traces_sample_rate=1.0,
-      _experiments={
+        dsn=key,
+        # Set tracesSampleRate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production
+        traces_sample_rate=1.0,
+        _experiments={
             "profiles_sample_rate": 1.0,
-        }
+        },
     )
+
 
 class Bot:
     """
     Main Bot class
     """
+
     def __init__(self) -> None:
         self.bot = DiscordBot()
         self.create_cogs()
@@ -58,6 +62,7 @@ class Bot:
         """
         Setup events
         """
+
         @self.bot.event
         async def on_ready():
             """
@@ -87,6 +92,7 @@ class Bot:
             await self.bot.add_cog(self.users_related)
             await self.bot.add_cog(self.audio_player)
             await self.bot.start(os.getenv('BOT_TOKEN'))
+
 
 bot = Bot()
 asyncio.run(bot.run())

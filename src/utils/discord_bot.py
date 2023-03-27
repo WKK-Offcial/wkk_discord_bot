@@ -14,9 +14,11 @@ class DiscordBot(commands.Bot):
     def __init__(self):
         intents = Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix=commands.when_mentioned_or("/"),
-                         description='The Boi is back',
-                         intents=intents, )
+        super().__init__(
+            command_prefix=commands.when_mentioned_or("/"),
+            description='The Boi is back',
+            intents=intents,
+        )
 
     async def setup_hook(self):
         """

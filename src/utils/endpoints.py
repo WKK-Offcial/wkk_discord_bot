@@ -11,7 +11,7 @@ dotenv.load_dotenv()
 server = f"http://{os.getenv('SERVER_IP')}:{os.getenv('SERVER_PORT')}"
 
 
-class Endpoints():
+class Endpoints:
     """
     HTTP communication with audio server
     """

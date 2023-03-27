@@ -1,5 +1,7 @@
 import functools
+
 import discord
+
 
 def user_bot_in_same_channel_check(func):
     """
@@ -7,6 +9,7 @@ def user_bot_in_same_channel_check(func):
     (Must be in the same voice channel)
     Executes decorated function only if check passed
     """
+
     @functools.wraps(func)  # preserves signature of the function so it can be used in commands
     async def decorator(*args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
@@ -22,12 +25,14 @@ def user_bot_in_same_channel_check(func):
 
     return decorator
 
+
 def user_is_in_voice_channel_check(func):
     """
     Decorator used to check whether player is able to use audio player controls.
     (Must be in the same voice channel)
     Executes decorated function only if check passed
     """
+
     @functools.wraps(func)  # preserves signature of the function so it can be used in commands
     async def decorator(*args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
@@ -36,18 +41,21 @@ def user_is_in_voice_channel_check(func):
 
         user_vc = interaction.user.voice
         if not user_vc:
-            await interaction.response.send_message("You can't control the bot because you're not in a voice channel",
-                                                    delete_after=3, ephemeral=True)
+            await interaction.response.send_message(
+                "You can't control the bot because you're not in a voice channel", delete_after=3, ephemeral=True
+            )
             return
         await func(*args, **kwargs)
 
     return decorator
+
 
 def is_playing_check(func):
     """
     Decorator for checking if bot is playing something.
     Executes decorated function only if check passed
     """
+
     @functools.wraps(func)  # preserves signature of the function so it can be used in commands
     async def decorator(*args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
@@ -56,11 +64,12 @@ def is_playing_check(func):
 
         bot_vc = interaction.guild.voice_client
         if not bot_vc.is_playing():
-            await interaction.response.send_message("Nothing is playing right now",
-                                                        delete_after=3, ephemeral=True)
+            await interaction.response.send_message("Nothing is playing right now", delete_after=3, ephemeral=True)
             return
         await func(*args, **kwargs)
+
     return decorator
+
 
 def button_cooldown(func):
     """
@@ -69,6 +78,7 @@ def button_cooldown(func):
     The object of the decorated method has to have a property named _cooldown
     which determines the cooldown of the buttons.
     """
+
     @functools.wraps(func)  # preserves signature of the function so it can be used in commands
     async def decorator(self, *args, **kwargs):
         interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
@@ -83,4 +93,5 @@ def button_cooldown(func):
             await interaction.response.send_message("🤠 Slow down partner! 🤠", delete_after=3, ephemeral=True)
             return
         await func(self, *args, **kwargs)
+
     return decorator

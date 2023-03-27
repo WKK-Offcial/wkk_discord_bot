@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 import re
 from io import BytesIO
@@ -6,16 +7,18 @@ from typing import TYPE_CHECKING
 
 import discord
 import wavelink
-from wavelink import InvalidLavalinkResponse
 from discord import app_commands
 from discord.ext import commands
+from wavelink import InvalidLavalinkResponse
+
+from utils.decorators import user_is_in_voice_channel_check
 from utils.endpoints import Endpoints
 from utils.wavelink_player import WavelinkPlayer
-from utils.decorators import user_is_in_voice_channel_check
 from views.audio_player_view import PlayerControlView
 
 if TYPE_CHECKING:
     from main import DiscordBot
+
 
 class AudioPlayer(commands.Cog):
     """
@@ -84,7 +87,7 @@ class AudioPlayer(commands.Cog):
             await interaction.edit_original_response(content="Type error!")
             logging.error(err)
         except InvalidLavalinkResponse as err:
-            #TODO: proper handling
+            # TODO: proper handling
             #      restarting bot worked last time it happened.
             #      check if simple reconnect to vc is enough if that happens again
             await interaction.edit_original_response(content="InvalidLavalinkResponse!")
@@ -204,9 +207,9 @@ class AudioPlayer(commands.Cog):
         bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
         # this check is performed once when reciving "on_voice_state_update"
         # then once again here to give user the grace period before disconecting
-        if (bot_vc and len(bot_vc.channel.members) == 1):
+        if bot_vc and len(bot_vc.channel.members) == 1:
             await bot_vc.disconnect()
-            if (view := self.views.get(guild_id)):
+            if view := self.views.get(guild_id):
                 view.remove_view()
                 self.views.pop(guild_id)
 
@@ -216,7 +219,7 @@ class AudioPlayer(commands.Cog):
         Returns first audio track and start time
         """
         guild_id = bot_vc.guild.id
-        start_time:int = 0
+        start_time: int = 0
         # Check if user wants to play audio from YouTube Playlist...
         try:
             youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search)

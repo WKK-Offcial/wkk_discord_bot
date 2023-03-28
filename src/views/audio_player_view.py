@@ -106,13 +106,6 @@ class PlayerControlView(discord.ui.View):
         Stop track on button press
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        # Add to history
-        current_track = bot_vc.current
-        current_time = bot_vc.position
-        bot_vc.track_start_times[current_track.title] = int(current_time)
-
-        # Clear player
-        bot_vc.queue.clear()
         await bot_vc.stop()
 
         # Update view

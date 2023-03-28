@@ -41,8 +41,6 @@ class AudioPlayer(commands.Cog):
         For YouTube type url or search phrase
         """
         await interaction.response.send_message(f"Looking for {search}...")
-
-        guild_id = interaction.guild_id
         voice_channel = interaction.user.voice.channel
 
         # Connect to vc or change vc to the one caller is in
@@ -61,20 +59,7 @@ class AudioPlayer(commands.Cog):
 
             await interaction.edit_original_response(content=f"Found \"{search_result.title}\".")
             bot_vc.track_start_times[search_result.title] = start_time
-            if not bot_vc.is_playing():
-                first_in_queue = await bot_vc.queue.get_wait()
-                await bot_vc.play(first_in_queue, start=start_time)
-
-            # Get/create view with audio controls
-            view = self.views.get(guild_id)
-            if not view or not view.active:
-                view = PlayerControlView(self.bot, guild_id, interaction.channel)
-                self.views[guild_id] = view
-            elif not view.controls_enabled:
-                view.enable_control_buttons()
-            if bot_vc.history.count == 0:
-                view.undo_button.disabled = True
-            await view.send_embed(bot_vc)
+            await self._play(interaction)
 
         # Catch errors
         except SyntaxError as err:
@@ -93,16 +78,39 @@ class AudioPlayer(commands.Cog):
             await interaction.edit_original_response(content="InvalidLavalinkResponse!")
             logging.error(err)
 
+    async def _play(self, interaction: discord.Interaction):
+        bot_vc: WavelinkPlayer = interaction.guild.voice_client
+        guild_id = interaction.guild_id
+        channel = interaction.channel
+
+        if not bot_vc.is_playing():  # 1 because the track we just added is waiting in queue
+            first_in_queue = bot_vc.queue.get()  #
+            start_time = bot_vc.track_start_times[first_in_queue.title]
+            await bot_vc.play(first_in_queue, start=start_time)
+
+        # Get/create view with audio controls
+        view = self.views.get(guild_id)
+        if not view or not view.active:
+            view = PlayerControlView(self.bot, guild_id, channel)
+            self.views[guild_id] = view
+        elif not view.controls_enabled:
+            view.enable_control_buttons()
+        if bot_vc.history.count == 0:
+            view.undo_button.disabled = True
+        await view.send_embed(bot_vc)
+
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
     @app_commands.command(name='disconnect')
     async def disconnect(self, interaction: discord.Interaction) -> None:
         """
         Simple disconnect command.
-        This command assumes there is a currently connected Player.
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        await bot_vc.disconnect()
+        if not bot_vc:
+            await interaction.response.send_message(content='No bot in voice channel', ephemeral=True, delete_after=3)
+            return
+        await self._remove_view_and_disconnect(bot_vc=bot_vc)
         await interaction.response.send_message(content='Bot disconnected', ephemeral=True, delete_after=3)
 
     @commands.guild_only()
@@ -200,18 +208,23 @@ class AudioPlayer(commands.Cog):
             view.undo_button.disabled = False
             await view.send_embed(bot_vc)
 
-    async def remove_view_and_disconnect(self, guild_id):
+    async def disconnect_when_alone(self, guild_id):
         """
         removes a view from given guild
         """
-        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
         # this check is performed once when reciving "on_voice_state_update"
         # then once again here to give user the grace period before disconecting
+        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
         if bot_vc and len(bot_vc.channel.members) == 1:
-            await bot_vc.disconnect()
-            if view := self.views.get(guild_id):
-                view.remove_view()
-                self.views.pop(guild_id)
+            self._remove_view_and_disconnect(bot_vc)
+
+    async def _remove_view_and_disconnect(self, bot_vc: WavelinkPlayer):
+        guild_id = bot_vc.guild.id
+        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
+        await bot_vc.disconnect()
+        if view := self.views.get(guild_id):
+            view.remove_view()
+            self.views.pop(guild_id)
 
     async def _add_to_queue(self, search: str, bot_vc: WavelinkPlayer) -> tuple[wavelink.Playable | None, int]:
         """

@@ -35,13 +35,13 @@ class AudioPlayer(commands.Cog):
     @commands.guild_only()
     @app_commands.command(name="play")
     @user_is_in_voice_channel_check
-    async def play(self, interaction: discord.Interaction, search: str):
+    async def play(self, interaction: discord.Interaction, search: str, force_play: bool | None) -> None:
         """
-        For soundboard type audio ID from list
-        For YouTube type url or search phrase
+        For soundboard type audio ID from list. For YouTube type url or search phrase. Force ignores queue and plays song immediately
         """
         await interaction.response.send_message(f"Looking for {search}...")
         voice_channel = interaction.user.voice.channel
+        guild_id = interaction.guild_id
 
         # Connect to vc or change vc to the one caller is in
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
@@ -52,14 +52,45 @@ class AudioPlayer(commands.Cog):
             await bot_vc.move_to(voice_channel)
 
         try:
-            search_result, start_time = await self._add_to_queue(search, bot_vc)
-            if not search_result:
+            search_results, start_time = await self._search_track(search, bot_vc)
+            if not search_results:
                 await interaction.edit_original_response(content=f"Couldn't find \"{search}\".")
                 return
 
-            await interaction.edit_original_response(content=f"Found \"{search_result.title}\".")
-            bot_vc.track_start_times[search_result.title] = start_time
-            await self._play(interaction)
+            await interaction.edit_original_response(content=f"Found \"{search_results[0].title}\".")
+            if force_play:
+                search_results.reverse()  # we need to reverse list since we are using put_at_front later
+            for track in search_results:
+                if force_play:
+                    bot_vc.queue.put_at_front(track)
+                else:
+                    await bot_vc.queue.put_wait(track)
+
+            bot_vc.track_start_times[search_results[0].title] = start_time
+
+            if not bot_vc.is_playing() or force_play:
+                first_in_queue = bot_vc.queue.get()
+                start_time = bot_vc.track_start_times.get(first_in_queue.title, 0)
+                if bot_vc.is_playing() or bot_vc.is_paused():
+                    current_track = bot_vc.current
+                    # TODO bug in wavelink, position is an error string when bot is paused
+                    current_pos = 0 if bot_vc.is_paused() else int(bot_vc.position)
+                    bot_vc.queue.put_at_index(len(search_results) - 1, current_track)
+                    bot_vc.track_start_times[current_track.title] = current_pos
+
+                await bot_vc.play(first_in_queue, start=start_time)
+
+                # Get/create view with audio controls
+            view = self.views.get(guild_id)
+            if not view or not view.active:
+                view = PlayerControlView(self.bot, guild_id, interaction.channel)
+                self.views[guild_id] = view
+            elif not view.controls_enabled:
+                view.enable_control_buttons()
+            if bot_vc.history.count == 0:
+                view.undo_button.disabled = True
+
+            await view.send_embed(bot_vc)
 
         # Catch errors
         except SyntaxError as err:
@@ -77,27 +108,6 @@ class AudioPlayer(commands.Cog):
             #      check if simple reconnect to vc is enough if that happens again
             await interaction.edit_original_response(content="InvalidLavalinkResponse!")
             logging.error(err)
-
-    async def _play(self, interaction: discord.Interaction):
-        bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        guild_id = interaction.guild_id
-        channel = interaction.channel
-
-        if not bot_vc.is_playing():  # 1 because the track we just added is waiting in queue
-            first_in_queue = bot_vc.queue.get()  #
-            start_time = bot_vc.track_start_times[first_in_queue.title]
-            await bot_vc.play(first_in_queue, start=start_time)
-
-        # Get/create view with audio controls
-        view = self.views.get(guild_id)
-        if not view or not view.active:
-            view = PlayerControlView(self.bot, guild_id, channel)
-            self.views[guild_id] = view
-        elif not view.controls_enabled:
-            view.enable_control_buttons()
-        if bot_vc.history.count == 0:
-            view.undo_button.disabled = True
-        await view.send_embed(bot_vc)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -216,7 +226,7 @@ class AudioPlayer(commands.Cog):
         # then once again here to give user the grace period before disconecting
         bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
         if bot_vc and len(bot_vc.channel.members) == 1:
-            self._remove_view_and_disconnect(bot_vc)
+            await self._remove_view_and_disconnect(bot_vc)
 
     async def _remove_view_and_disconnect(self, bot_vc: WavelinkPlayer):
         guild_id = bot_vc.guild.id
@@ -226,7 +236,7 @@ class AudioPlayer(commands.Cog):
             view.remove_view()
             self.views.pop(guild_id)
 
-    async def _add_to_queue(self, search: str, bot_vc: WavelinkPlayer) -> tuple[wavelink.Playable | None, int]:
+    async def _search_track(self, search: str, bot_vc: WavelinkPlayer) -> tuple[list[wavelink.Playable] | None, int]:
         """
         Creates audio tracks and adds it to queue
         Returns first audio track and start time
@@ -239,9 +249,7 @@ class AudioPlayer(commands.Cog):
             if youtube_playlist_regex and youtube_playlist_regex.groups():
                 safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
                 playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
-                for track in playlist.tracks:
-                    await bot_vc.queue.put_wait(track)
-                audio_track = playlist.tracks[0]
+                audio_tracks = [track for track in playlist.tracks]
             # ...or soundboard...
             elif search.isdecimal():
                 sound_id = int(search)
@@ -251,8 +259,7 @@ class AudioPlayer(commands.Cog):
 
                 file_name = guild_soundboard[int(search) - 1]
                 file_path = f'sounds/{str(guild_id)}/{file_name}'
-                audio_track = await wavelink.GenericTrack.search(file_path, return_first=True)
-                await bot_vc.queue.put_wait(audio_track)
+                audio_tracks = [await wavelink.GenericTrack.search(file_path, return_first=True)]
             # ...Else search on youtube.
             else:
                 # Check if start time was passed
@@ -264,13 +271,10 @@ class AudioPlayer(commands.Cog):
                 video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
                 if video_id_regex and video_id_regex.groups()[0]:
                     safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
-                    audio_track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
+                    audio_tracks = [await wavelink.YouTubeTrack.search(safe_url, return_first=True)]
                 else:
-                    audio_track = await wavelink.YouTubeTrack.search(search, return_first=True)
+                    audio_tracks = [await wavelink.YouTubeTrack.search(search, return_first=True)]
 
-                await bot_vc.queue.put_wait(audio_track)
-            return audio_track, start_time
+            return audio_tracks, start_time
         except wavelink.exceptions.NoTracksError:
-            return None
-        except wavelink.exceptions.WavelinkException:
             return None

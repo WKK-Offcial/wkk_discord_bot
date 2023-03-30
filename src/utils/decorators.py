@@ -1,4 +1,6 @@
+import asyncio
 import functools
+import inspect
 
 import discord
 
@@ -91,6 +93,7 @@ def is_playing_check(func):
     return decorator
 
 
+# TODO  make it better
 def button_cooldown(func):
     """
     Decorator for setting cooldown for buttons.\n
@@ -113,5 +116,25 @@ def button_cooldown(func):
             await interaction.response.send_message("🤠 Slow down partner! 🤠", delete_after=3, ephemeral=True)
             return
         await func(self, *args, **kwargs)
+
+    return decorator
+
+
+def run_threadsafe(func):
+    """
+    Decorator for runing coroutine as threadsafe.\n
+    Decorated corouting becomes a function so it doesnt have to be awaited
+    """
+
+    def decorator(*args, **kwargs):
+        loop = next((arg for arg in args if isinstance(arg, asyncio.AbstractEventLoop)), None)
+        if not loop:
+            loop = next((kwarg for kwarg in kwargs.values() if isinstance(kwarg, asyncio.AbstractEventLoop)), None)
+        if loop is None:
+            raise ValueError("There is no EventLoop in argument of decorated function")
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError('Decorated function is not a coroutine')
+        coro = func(*args, **kwargs)
+        asyncio.run_coroutine_threadsafe(coro, loop=loop)
 
     return decorator

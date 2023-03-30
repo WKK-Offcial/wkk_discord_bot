@@ -11,12 +11,13 @@ from discord.ext import commands
 from utils.decorators import (
     button_cooldown,
     is_playing_check,
+    run_threadsafe,
     user_bot_in_same_channel_check,
 )
 from utils.wavelink_player import WavelinkPlayer
 
 if TYPE_CHECKING:
-    from main import BoiBot
+    from main import DiscordBot
 
 
 class PlayerControlView(discord.ui.View):
@@ -24,9 +25,9 @@ class PlayerControlView(discord.ui.View):
     View class for controlling audio player through view
     """
 
-    def __init__(self, bot: BoiBot, guild_id: int, text_channel: discord.TextChannel):
+    def __init__(self, bot: DiscordBot, guild_id: int, text_channel: discord.TextChannel):
         super().__init__(timeout=None)
-        self.bot: BoiBot = bot
+        self.bot: DiscordBot = bot
         self.guild_id: int = guild_id
         self.text_channel: discord.TextChannel = text_channel
         self.embed_handle: discord.Message = None
@@ -34,7 +35,7 @@ class PlayerControlView(discord.ui.View):
         self.controls_enabled = True
         self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
-    @discord.ui.button(label='◀◀ Undo', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
     @button_cooldown
     async def undo_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -42,9 +43,6 @@ class PlayerControlView(discord.ui.View):
         Undo a song skip.
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        if bot_vc.history.count == 0:
-            await interaction.response.send_message("Nothing was played before!", delete_after=3, ephemeral=True)
-            return
 
         await interaction.response.defer()
         last_track = await bot_vc.history.get_wait()
@@ -88,13 +86,7 @@ class PlayerControlView(discord.ui.View):
         Skip track on button press
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        # Add to history
-        current_track = bot_vc.current
-        current_time = bot_vc.position
-        bot_vc.track_start_times[current_track.title] = int(current_time)
-
-        # Skip song
-        await bot_vc.stop()
+        await bot_vc.skip()
         await interaction.response.defer()
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
@@ -106,7 +98,7 @@ class PlayerControlView(discord.ui.View):
         Stop track on button press
         """
         bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        await bot_vc.stop()
+        await bot_vc.stop_all()
 
         # Update view
         self.disable_control_buttons()
@@ -174,10 +166,8 @@ class PlayerControlView(discord.ui.View):
 
     async def send_embed(self, bot_vc: WavelinkPlayer):
         """
-        Removes last message and sends new one to keep it on the bottom of the chat
+        Removes last message and sends new one to keep it on the bottom of the chat\n
         """
-        if self.embed_handle:
-            await self.embed_handle.delete()
 
         # Calculate queue time length
         total_seconds = 0
@@ -200,7 +190,7 @@ class PlayerControlView(discord.ui.View):
             queue_preview += f'... and {bot_vc.queue.count - 10} more.\n{queue_time}\n'
         else:
             for i in range(bot_vc.queue.count):
-                queue_preview += f"{str(bot_vc.queue[i].title)}\n"
+                queue_preview += f"{i + 1}. {str(bot_vc.queue[i].title)}\n"
             queue_preview += f'{queue_time}\n'
 
         # Create new embed
@@ -217,4 +207,15 @@ class PlayerControlView(discord.ui.View):
         embed.add_field(name='', value='▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁', inline=False)
         embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
 
+        self._replace_embed(embed, loop=self.bot.loop)
+
+    @run_threadsafe
+    async def _replace_embed(self, embed: discord.Embed, *, loop: asyncio.AbstractEventLoop):
+        """
+        internal function for replacing handle
+        runs as threadsafe to prevent race condition
+        * run it without await - it is not a coroutine
+        """
+        if self.embed_handle:
+            await self.embed_handle.delete()
         self.embed_handle = await self.text_channel.send(content=None, embed=embed, view=self)

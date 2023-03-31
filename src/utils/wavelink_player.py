@@ -15,42 +15,49 @@ class WavelinkPlayer(Player):
 
     def __init__(self, client: DiscordBot, channel: discord.VoiceChannel) -> None:
         super().__init__(client, channel)
-        self.history = Queue()
-        self.track_start_times: dict[str, int] = {}
 
     async def connect(self, *, timeout: float, reconnect: bool, **kwargs) -> None:
-        key_id, _ = self.channel._get_voice_client_key()
-        state = self.channel._state
-        state._add_voice_client(key_id, self)
-        await super().connect(timeout=timeout, reconnect=reconnect, **kwargs)
-        await self.set_filter(wavelink.Filter())
+        if not self.is_connected():
+            key_id, _ = self.channel._get_voice_client_key()
+            state = self.channel._state
+            state._add_voice_client(key_id, self)
+            await super().connect(timeout=timeout, reconnect=reconnect, **kwargs)
+            await self.set_filter(wavelink.Filter())
 
     async def stop_all(self) -> None:
         """
         stops currenty playing track\n
         clears the queue
         """
-        # Add to history
-        current_track: Playable = self.current
-        current_time = self.position
-        self.track_start_times[current_track.title] = int(current_time)
         # Clear player
         self.queue.clear()
         await super().stop()
 
-    async def skip(self) -> None:
+    async def next(self) -> None:
         """
         Skip to next song
         """
-        # Add to history
-        current_track: Playable = self.current
-        current_time = self.position
-        self.track_start_times[current_track.title] = int(current_time)
-        if not current_track:
-            raise ValueError('Nothing to skip')
+        if not self.queue.is_empty:
+            next_track = await self.queue.get_wait()
+            await self.play(next_track)
+        elif self.is_playing():
+            await super().stop()
 
-        # Skip song
-        await super().stop()
+    async def previous(self) -> None:
+        """
+        plays previous track0
+        """
+
+        # TODO not working yet
+        if self.current and len(self.queue.history) == 1:
+            return
+
+        print(self.current.title)
+        song_index = bool(self.current)
+        for _ in range(song_index + 1):
+            track: Playable = self.queue.history.pop()
+            print(track.title)
+        await self.play(track)
 
     async def connect_and_move_to(self, voice_channel: discord.VoiceChannel):
         """
@@ -62,7 +69,7 @@ class WavelinkPlayer(Player):
         if self.channel.id != voice_channel.id:
             await super().move_to(voice_channel)
 
-    async def search_and_play(self, search_query: str, force_play: bool = False) -> list[wavelink.Playable]:
+    async def search_and_try_playing(self, search_query: str, force_play: bool = False) -> list[wavelink.Playable]:
         """
         Gets tracks from search_querry then tries to play them.\n
         Returns found tracks
@@ -94,6 +101,35 @@ class WavelinkPlayer(Player):
                 self.queue.put_at_index(len(tracks) - 1, current_track)
 
             await self.play(first_in_queue)
+
+    def is_connected(self) -> bool:
+        """
+        Check if the bot is is any voice channel
+        """
+        return bool(self.guild)
+
+    async def toggle_pause(self):
+        """
+        toggles pause on or off
+        """
+        if not self.is_paused():
+            await self.pause()
+        else:
+            await self.resume()
+
+    async def toggle_cursed_filter(self):
+        """
+        toggles the 4th density filter
+        """
+        if not self.filter:
+            filter_ = wavelink.Filter(
+                tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
+                vibrato=wavelink.Vibrato(frequency=14, depth=1),
+                timescale=wavelink.Timescale(pitch=0.8),
+            )
+        else:
+            filter_ = wavelink.Filter()
+        await self.set_filter(filter_)
 
     async def search_tracks(self, search_querry: str) -> list[wavelink.Playable]:
         """

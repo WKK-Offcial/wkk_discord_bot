@@ -80,7 +80,7 @@ class Bot:
             # Checking if the bot is connected to a channel
             # and if there is only 1 member connected to it (the bot itself)
             if voice_state is not None and len(voice_state.channel.members) == 1:
-                await delay_coro(coro=self.audio_player.disconnect_when_alone(member.guild.id), seconds=60)
+                await delay_coro(coro=self.audio_player.disconnect_if_alone(member.guild.id), seconds=60)
 
     async def run(self):
         """

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -28,17 +27,18 @@ class AudioPlayer(commands.Cog):
 
     def __init__(self, bot: DiscordBot) -> None:
         self.bot: DiscordBot = bot
-        self.views: dict[int, PlayerControlView] = {}
         self.history: dict[int, list[tuple[wavelink.Playable, int]]] = {}
         self.voice_clients: dict[int, WavelinkPlayer] = {}
+        self.views: dict[int, PlayerControlView] = {}
 
     def init_voice_client(self):
+        """
+        pupulate voice_client dictionary.\n
+        Run this method after discord bot finished setting up
+        """
+        # TODO dick comprehension
         for guild in self.bot.guilds:
-            vc = WavelinkPlayer(self.bot, guild.voice_channels[0])
-            guild_id = guild.id
-            self.voice_clients[guild_id] = vc
-
-    #
+            self.voice_clients[guild.id] = WavelinkPlayer(self.bot, guild.voice_channels[0])
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -51,26 +51,15 @@ class AudioPlayer(commands.Cog):
         await interaction.response.send_message(f"Looking for {search}...")
         guild_id = interaction.guild_id
         voice_channel = interaction.user.voice.channel
-        # voice_channel.connect()
 
         # Connect to vc or change vc to the one caller is in
         voice_player: WavelinkPlayer = self.voice_clients[guild_id]
         await voice_player.connect_and_move_to(voice_channel)
         try:
-            tracks = await voice_player.search_and_play(search, force_play=force_play)
+            tracks = await voice_player.search_and_try_playing(search, force_play=force_play)
             await interaction.edit_original_response(content=f"Found \"{tracks[0].title}\".")
-
-            # Get/create view with audio controls
-            view = self.views.get(guild_id)
-            if not view or not view.active:
-                view = PlayerControlView(self.bot, guild_id, interaction.channel)
-                self.views[guild_id] = view
-            elif not view.controls_enabled:
-                view.enable_control_buttons()
-            if voice_player.history.count == 0:
-                view.undo_button.disabled = True
-
-            await view.send_embed(voice_player)
+            view = self.get_view(interaction)
+            await view.update_message(voice_player)
 
         # Catch errors
         except NoTracksFound:
@@ -98,11 +87,11 @@ class AudioPlayer(commands.Cog):
         """
         Simple disconnect command.
         """
-        bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        if not bot_vc:
+        voice_client: WavelinkPlayer = self.voice_clients[interaction.guild_id]
+        if not voice_client.is_connected():
             await interaction.response.send_message(content='No bot in voice channel', ephemeral=True, delete_after=3)
             return
-        await self._remove_view_and_disconnect(bot_vc=bot_vc)
+        await self._remove_view_and_disconnect(voice_client=voice_client)
         await interaction.response.send_message(content='Bot disconnected', ephemeral=True, delete_after=3)
 
     @commands.guild_only()
@@ -136,9 +125,9 @@ class AudioPlayer(commands.Cog):
             await interaction.response.send_message("Value must be between 0 and 100", ephemeral=True, delete_after=3)
             return
 
-        bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        if bot_vc:
-            await bot_vc.set_volume(value)
+        voice_client: WavelinkPlayer = self.voice_clients[interaction.guild_id]
+        if voice_client.is_connected():
+            await voice_client.set_volume(value)
             await interaction.response.send_message(f"Value set to {value}", delete_after=15)
         else:
             await interaction.response.send_message("Bot must be in voice channel", ephemeral=True, delete_after=3)
@@ -165,98 +154,69 @@ class AudioPlayer(commands.Cog):
         """
         Callback function used for players to play next audio source in queue
         """
-        bot_vc: WavelinkPlayer = payload.player
-        guild_id = bot_vc.guild.id
+        voice_client: WavelinkPlayer = payload.player
+        guild_id = voice_client.guild.id
         view = self.views.get(guild_id)
+        if view:
+            await view.update_message(voice_client)
 
-        # REPLACED means it was called from undo_button so we only need to update embed
-        if payload.reason == "REPLACED":
-            # Disable undo button if there's nothing to undo
-            if bot_vc.history.count == 0:
-                view.undo_button.disabled = True
-            if not view.controls_enabled:
-                view.enable_control_buttons()
-            await view.send_embed(bot_vc)
-            return
+        # # # REPLACED means it was called from undo_button so we only need to update embed
+        # # if payload.reason == "REPLACED":
+        # #     # Disable undo button if there's nothing to undo
+        # #     if voice_client.history.count == 0:
+        # #         view.undo_button.disabled = True
+        # #     if not view.controls_enabled:
+        # #         view.enable_control_buttons()
+        # #     await view.send_embed(voice_client)
+        # #     return
 
-        # Queue logic
-        bot_vc.history.put_at_front(payload.track)
-        guild_queue = bot_vc.queue
-        if guild_queue.count > 0:
-            # Play next in queue
-            next_audio_track = await guild_queue.get_wait()
-            track_start_time = bot_vc.track_start_times.get(next_audio_track.title, 0)
-            await bot_vc.play(next_audio_track, start=track_start_time)
-            # Update view
-            if not view.controls_enabled:
-                view.enable_control_buttons()
-            view.undo_button.disabled = False
-            await view.send_embed(bot_vc)
+        # # Queue logic
+        # voice_client.history.put_at_front(payload.track)
+        # guild_queue = voice_client.queue
+        # if guild_queue.count > 0:
+        #     # Play next in queue
+        #     next_audio_track = await guild_queue.get_wait()
+        #     track_start_time = voice_client.track_start_times.get(next_audio_track.title, 0)
+        #     await voice_client.play(next_audio_track, start=track_start_time)
+        #     # Update view
+        #     if not view.controls_enabled:
+        #         view.enable_control_buttons()
+        #     view.undo_button.disabled = False
+        #     await view.update_message(voice_client)
 
-        elif view:
-            # Update view
-            await bot_vc.set_filter(wavelink.Filter())
-            view.disable_control_buttons()
-            view.undo_button.disabled = False
-            await view.send_embed(bot_vc)
+        # elif view:
+        #     # Update view
+        #     await voice_client.set_filter(wavelink.Filter())
+        #     view.disable_control_buttons()
+        #     view.undo_button.disabled = False
+        #     await view.send_embed(voice_client)
 
-    async def disconnect_when_alone(self, guild_id):
+    def get_view(self, interaction: discord.Interaction) -> PlayerControlView:
+        """
+        returns view acording to given interraction\n
+        if view doesnt exist it creates it and then returns it
+        """
+        guild_id = interaction.guild_id
+        channel = interaction.channel
+        if not (view := self.views.get(guild_id, None)):
+            view = PlayerControlView(self.bot, channel)
+            self.views[guild_id] = view
+        return view
+
+    async def disconnect_if_alone(self, guild_id):
         """
         removes a view from given guild
         """
         # this check is performed once when reciving "on_voice_state_update"
         # then once again here to give user the grace period before disconecting
-        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
-        if bot_vc and len(bot_vc.channel.members) == 1:
-            await self._remove_view_and_disconnect(bot_vc)
+        voice_client: WavelinkPlayer = self.voice_clients[guild_id]
+        if voice_client.is_connected() and len(voice_client.channel.members) == 1:
+            await self._remove_view_and_disconnect(voice_client)
 
-    async def _remove_view_and_disconnect(self, bot_vc: WavelinkPlayer):
-        guild_id = bot_vc.guild.id
-        bot_vc: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
-        await bot_vc.disconnect()
+    async def _remove_view_and_disconnect(self, voice_client: WavelinkPlayer):
+        guild_id = voice_client.guild.id
+        voice_client: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
+        await voice_client.disconnect()
         if view := self.views.get(guild_id):
             view.remove_view()
             self.views.pop(guild_id)
-
-    async def _search_track(self, search: str, bot_vc: WavelinkPlayer) -> tuple[list[wavelink.Playable] | None, int]:
-        """
-        Creates audio tracks and adds it to queue
-        Returns first audio track and start time
-        """
-        guild_id = bot_vc.guild.id
-        start_time: int = 0
-        # Check if user wants to play audio from YouTube Playlist...
-        try:
-            youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search)
-            if youtube_playlist_regex and youtube_playlist_regex.groups():
-                safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
-                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
-                audio_tracks = [track for track in playlist.tracks]
-            # ...or soundboard...
-            elif search.isdecimal():
-                sound_id = int(search)
-                guild_soundboard = Endpoints.get_soundboard(guild_id)
-                if not guild_soundboard or sound_id > len(guild_soundboard):
-                    return None
-
-                file_name = guild_soundboard[int(search) - 1]
-                file_path = f'sounds/{str(guild_id)}/{file_name}'
-                audio_tracks = [await wavelink.GenericTrack.search(file_path, return_first=True)]
-            # ...Else search on youtube.
-            else:
-                # Check if start time was passed
-                start_time_regex = re.search(r"(?:[\?&])?t=([0-9]+)", search)
-                if start_time_regex and start_time_regex.groups()[0]:
-                    start_time = int(start_time_regex.groups()[0]) * 1000
-
-                # We need to extract vid id because wavelink does not support shortened links
-                video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search)
-                if video_id_regex and video_id_regex.groups()[0]:
-                    safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
-                    audio_tracks = [await wavelink.YouTubeTrack.search(safe_url, return_first=True)]
-                else:
-                    audio_tracks = [await wavelink.YouTubeTrack.search(search, return_first=True)]
-
-            return audio_tracks, start_time
-        except wavelink.exceptions.NoTracksError:
-            return None

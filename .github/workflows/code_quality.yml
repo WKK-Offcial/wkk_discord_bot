@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y libopus-dev
 
-      - name: Test Run
+      - name: Test Run Boi
         run: |
           python src/main.py &
           sleep 20

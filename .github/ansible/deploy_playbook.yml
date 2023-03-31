@@ -10,7 +10,7 @@
         boi_name: wkk_boi
         boi_token: "{{ BOT_TOKEN }}"
 
-    - name: 'Stop Boi'
+    - name: 'stop Boi'
       community.docker.docker_container:
         name: "{{ boi_name }}"
         state: stopped

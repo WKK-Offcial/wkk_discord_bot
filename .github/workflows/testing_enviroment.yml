@@ -36,27 +36,50 @@ jobs:
           tags: "ghcr.io/wkk-offcial/boi_redemption_arc:${{ github.event.inputs.git_ref }}"
 
   deploy:
-      name: Deploy test bot to EC2
-      needs: docker_build
-      runs-on: ubuntu-latest
-      steps:
-      - name: Deploy Image on EC2
-        uses: appleboy/ssh-action@v0.1.8
-        env:
-          DISCORD_TOKEN: ${{ secrets.TEST_BOI_DC_TOKEN }}
-          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-          DOCKER_BOI_IMAGE_TEST: "ghcr.io/wkk-offcial/boi_redemption_arc:${{ github.event.inputs.git_ref }}"
-          DOCKER_BOI_TEST_NAME: "test_boi"
-        with:
-          host: ${{secrets.BOI_HOSTNAME}}
-          username: ec2-user
-          key: ${{secrets.BOI_PRIVATE_KEY}}
-          envs: DISCORD_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN, DOCKER_BOI_IMAGE_TEST, DOCKER_BOI_TEST_NAME
-          script: |
-            docker pull $DOCKER_BOI_IMAGE_TEST
-            docker run --restart on-failure --detach -e BOT_TOKEN=$DISCORD_TOKEN -e DROPBOX_APP_KEY=$DROPBOX_APP_KEY -e DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET -e DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN --name $DOCKER_BOI_TEST_NAME $DOCKER_BOI_IMAGE_TEST
+    name: Deploy to EC2
+    needs: docker_build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy Image on EC2
+      uses: appleboy/ssh-action@v0.1.8
+      env:
+        DISCORD_TOKEN: ${{ secrets.BOI_DISCORD_TOKEN }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT }}
+        SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}
+        DOCKER_BOI_IMAGE: "ghcr.io/wkk-offcial/boi_redemption_arc:latest"
+        DOCKER_BOI_NAME: "wkk_boi"
+        WAVELINK_URL: ${{ secrets.WAVELINK_URL }}
+        WAVELINK_PORT: ${{ secrets.WAVELINK_PORT }}
+        WAVELINK_PASSWORD: ${{ secrets.WAVELINK_PASSWORD }}
+      with:
+        host: ${{secrets.BOI_HOSTNAME}}
+        username: ec2-user
+        key: ${{secrets.BOI_PRIVATE_KEY}}
+        envs: DISCORD_TOKEN, SERVER_IP, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
+        script_stop: true
+        script: |
+          if [[ -z "$(docker network ls | grep wkk-network)" ]]; then
+            docker network create wkk-network
+          fi
+          docker pull $DOCKER_BOI_IMAGE
+          docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME || true
+          docker run --restart on-failure \
+          --detach \
+          --network="wkk-network" \
+          -e BOT_TOKEN=$DISCORD_TOKEN \
+          -e SERVER_IP=$SERVER_IP \
+          -e SERVER_PORT=$SERVER_PORT \
+          -e SERVER_ENDPOINT=$SERVER_ENDPOINT \
+          -e WAVELINK_URL=$WAVELINK_URL \
+          -e WAVELINK_PORT=$WAVELINK_PORT \
+          -e WAVELINK_PASSWORD=$WAVELINK_PASSWORD \
+          -e SENTRY_KEY=$SENTRY_KEY \
+          -v /home/ec2-user/soundboards:/wkk-bot/cache/soundboards \
+          --name $DOCKER_BOI_NAME \
+          $DOCKER_BOI_IMAGE
+
+          docker image prune <<< y
 
   destroy:
       name: Stop test Boi

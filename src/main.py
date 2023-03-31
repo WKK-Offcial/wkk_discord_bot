@@ -69,6 +69,7 @@ class Bot:
             Event that occurrence one time when bot is ready to work
             """
             logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
+            self.audio_player.init_voice_client()
 
         @self.bot.event
         async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):

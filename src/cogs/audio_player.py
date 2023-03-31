@@ -13,7 +13,7 @@ from wavelink import InvalidLavalinkResponse
 
 from utils.decorators import user_is_in_voice_channel_check
 from utils.endpoints import Endpoints
-from utils.wavelink_player import WavelinkPlayer
+from utils.wavelink_player import NoTracksFound, WavelinkPlayer
 from views.audio_player_view import PlayerControlView
 
 if TYPE_CHECKING:
@@ -30,6 +30,15 @@ class AudioPlayer(commands.Cog):
         self.bot: DiscordBot = bot
         self.views: dict[int, PlayerControlView] = {}
         self.history: dict[int, list[tuple[wavelink.Playable, int]]] = {}
+        self.voice_clients: dict[int, WavelinkPlayer] = {}
+
+    def init_voice_client(self):
+        for guild in self.bot.guilds:
+            vc = WavelinkPlayer(self.bot, guild.voice_channels[0])
+            guild_id = guild.id
+            self.voice_clients[guild_id] = vc
+
+    #
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -40,59 +49,32 @@ class AudioPlayer(commands.Cog):
         For soundboard type audio ID from list. For YouTube type url or search phrase. Force ignores queue and plays song immediately
         """
         await interaction.response.send_message(f"Looking for {search}...")
-        voice_channel = interaction.user.voice.channel
         guild_id = interaction.guild_id
+        voice_channel = interaction.user.voice.channel
+        # voice_channel.connect()
 
         # Connect to vc or change vc to the one caller is in
-        bot_vc: WavelinkPlayer = interaction.guild.voice_client
-        if not bot_vc:
-            bot_vc = await voice_channel.connect(cls=WavelinkPlayer)
-            await bot_vc.set_filter(wavelink.Filter())
-        elif bot_vc.channel != voice_channel:
-            await bot_vc.move_to(voice_channel)
-
+        voice_player: WavelinkPlayer = self.voice_clients[guild_id]
+        await voice_player.connect_and_move_to(voice_channel)
         try:
-            search_results, start_time = await self._search_track(search, bot_vc)
-            if not search_results:
-                await interaction.edit_original_response(content=f"Couldn't find \"{search}\".")
-                return
+            tracks = await voice_player.search_and_play(search, force_play=force_play)
+            await interaction.edit_original_response(content=f"Found \"{tracks[0].title}\".")
 
-            await interaction.edit_original_response(content=f"Found \"{search_results[0].title}\".")
-            if force_play:
-                search_results.reverse()  # we need to reverse list since we are using put_at_front later
-            for track in search_results:
-                if force_play:
-                    bot_vc.queue.put_at_front(track)
-                else:
-                    await bot_vc.queue.put_wait(track)
-
-            bot_vc.track_start_times[search_results[0].title] = start_time
-
-            if not bot_vc.is_playing() or force_play:
-                first_in_queue = bot_vc.queue.get()
-                start_time = bot_vc.track_start_times.get(first_in_queue.title, 0)
-                if bot_vc.is_playing() or bot_vc.is_paused():
-                    current_track = bot_vc.current
-                    # TODO bug in wavelink, position is an error string when bot is paused
-                    current_pos = 0 if bot_vc.is_paused() else int(bot_vc.position)
-                    bot_vc.queue.put_at_index(len(search_results) - 1, current_track)
-                    bot_vc.track_start_times[current_track.title] = current_pos
-
-                await bot_vc.play(first_in_queue, start=start_time)
-
-                # Get/create view with audio controls
+            # Get/create view with audio controls
             view = self.views.get(guild_id)
             if not view or not view.active:
                 view = PlayerControlView(self.bot, guild_id, interaction.channel)
                 self.views[guild_id] = view
             elif not view.controls_enabled:
                 view.enable_control_buttons()
-            if bot_vc.history.count == 0:
+            if voice_player.history.count == 0:
                 view.undo_button.disabled = True
 
-            await view.send_embed(bot_vc)
+            await view.send_embed(voice_player)
 
         # Catch errors
+        except NoTracksFound:
+            await interaction.edit_original_response(content=f"Couldn't find \"{search}\".")
         except SyntaxError as err:
             await interaction.edit_original_response(content='No argument passed!')
             logging.error(err.msg)

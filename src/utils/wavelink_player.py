@@ -72,7 +72,6 @@ class WavelinkPlayer(wavelink.Player):
         interrupted_time = getattr(track, 'interrupted_time', 0)
         if interrupted_time > start:
             start = interrupted_time
-
         await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
         self._paused = False  # because it doesnt update if player is paused and we start playing something
 
@@ -96,7 +95,7 @@ class WavelinkPlayer(wavelink.Player):
                 current_track = self.current
                 setattr(current_track, 'interrupted_time', self.last_position)
                 self.queue.put_at_index(len(tracks) - 1, current_track)
-
+            # TODO: find other method of setting start_time and interrupted_time so that typehinting works
             await self.play(first_in_queue, start=getattr(first_in_queue, 'start_time', 0))
 
     async def search_tracks(self, search_phrase: str) -> list[wavelink.Playable]:

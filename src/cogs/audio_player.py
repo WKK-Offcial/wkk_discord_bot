@@ -69,7 +69,7 @@ class AudioPlayer(commands.Cog):
             await interaction.edit_original_response(content='No argument passed!')
             logging.error(err.msg)
         except IndexError as err:
-            await interaction.edit_original_response(content='Index out of range!')
+            await interaction.edit_original_response(content='No such number in soundboard')
             logging.error(err)
         except TypeError as err:
             await interaction.edit_original_response(content="Type error!")

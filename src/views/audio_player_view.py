@@ -30,7 +30,7 @@ class PlayerControlView(discord.ui.View):
         super().__init__(timeout=None)
         self.bot: DiscordBot = bot
         self.text_channel: discord.TextChannel = text_channel
-        self.message_handle: discord.Message = None
+        self.message_handle: discord.Message | None = None
         self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
     @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple)
@@ -116,7 +116,7 @@ class PlayerControlView(discord.ui.View):
             discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if voice_client.filter else None
         )
 
-    async def wait_for_track_end(self):
+    async def wait_for_track_end(self) -> None:
         """
         waits for the current track to end.\n
         Useful because calling e.g. voice_client.skip() doesn't immidiately update voice_client correctly

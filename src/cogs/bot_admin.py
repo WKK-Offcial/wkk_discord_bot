@@ -65,6 +65,6 @@ class BotAdmin(commands.Cog):
         """
         This command exits the program which should automatically reboot the container
         """
-        interaction.response.send_message(content="BRB")
+        await interaction.response.send_message(content="BRB")
         logging.warning('Restart called from %d', interaction.guild.id)
         sys.exit()

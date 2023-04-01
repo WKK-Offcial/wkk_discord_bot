@@ -20,7 +20,7 @@ class DiscordBot(commands.Bot):
             intents=intents,
         )
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         """
         Connect to lavalink server
         """

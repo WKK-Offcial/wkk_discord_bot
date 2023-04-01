@@ -75,7 +75,7 @@ class WavelinkPlayer(wavelink.Player):
         await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
         self._paused = False  # because it doesnt update if player is paused and we start playing something
 
-    async def try_playing(self, tracks: list[wavelink.Playable], force_play: bool = False) -> None:
+    async def try_playing(self, tracks: list[wavelink.Playable], force_play: bool | None = False) -> None:
         """
         Tries to play the track.\n
         If currently playing then just add tracks to queue\n
@@ -156,7 +156,9 @@ class WavelinkPlayer(wavelink.Player):
 
         return tracks
 
-    async def search_and_try_playing(self, search_query: str, force_play: bool = False) -> list[wavelink.Playable]:
+    async def search_and_try_playing(
+        self, search_query: str, force_play: bool | None = False
+    ) -> list[wavelink.Playable]:
         """
         Gets tracks from search_querry then tries to play them.\n
         Returns found tracks

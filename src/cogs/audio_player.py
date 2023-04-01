@@ -154,6 +154,11 @@ class AudioPlayer(commands.Cog):
         """
         voice_client: WavelinkPlayer = payload.player
         guild_id = payload.player.guild.id
+
+        # since we let the track finish we make sure interrupted_time is cleared
+        if payload.reason == 'FINISHED':
+            setattr(payload.track, 'interrupted_time', 0)
+
         if payload.reason != 'REPLACED':
             await voice_client.add_to_history(payload.track)
             await voice_client.next()

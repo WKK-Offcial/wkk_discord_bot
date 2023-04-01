@@ -1,4 +1,3 @@
-import logging
 import re
 
 import discord
@@ -12,8 +11,6 @@ class WavelinkPlayer(wavelink.Player):
     """
     Wavelink player subclass
     """
-
-    # TODO respect start times
 
     def __init__(self, client: DiscordBot, channel: discord.VoiceChannel) -> None:
         self.history = wavelink.Queue()
@@ -52,14 +49,14 @@ class WavelinkPlayer(wavelink.Player):
         """
         Skip to next song
         """
+        if current := self.current:
+            setattr(self.current, 'interrupted_time', self.last_position)
+
         if not self.queue.is_empty:
             next_track = await self.queue.get_wait()
-            current = self.current
-            if isinstance(current, wavelink.Playable):
+            if current:
                 await self.history.put_wait(self.current)
-            else:
-                logging.warning("Tried putting %s into history queue", str(type(current)))
-            await self.play(next_track)
+            await self.play(next_track, start=getattr(next_track, 'start_time', 0))
         elif self.is_playing():
             await super().stop()
 
@@ -71,8 +68,9 @@ class WavelinkPlayer(wavelink.Player):
             return
         track: wavelink.Playable = self.history.pop()
         if current := self.current:
+            setattr(current, 'interrupted_time', self.last_position)
             self.queue.put_at_front(current)
-        await self.play(track)
+        await self.play(track, start=getattr(track, 'start_time', 0))
 
     async def play(
         self,
@@ -84,6 +82,11 @@ class WavelinkPlayer(wavelink.Player):
         *,
         populate: bool = False,
     ) -> wavelink.Playable:
+        if start is None:
+            start = 0
+        interrupted_time = getattr(track, 'interrupted_time', 0)
+        if interrupted_time > start:
+            start = interrupted_time
 
         await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
         self._paused = False  # because it doesnt update if player is paused and we start playing something
@@ -125,6 +128,7 @@ class WavelinkPlayer(wavelink.Player):
             first_in_queue = self.queue.get()
             if self.is_playing() or self.is_paused():
                 current_track = self.current
+                setattr(current_track, 'interrupted_time', self.last_position)
                 self.queue.put_at_index(len(tracks) - 1, current_track)
 
             await self.play(first_in_queue, start=getattr(first_in_queue, 'start_time', 0))

@@ -16,6 +16,13 @@ class WavelinkPlayer(wavelink.Player):
         self.history = wavelink.Queue()
         super().__init__(client, channel)
 
+    @property
+    def is_connected(self) -> bool:
+        """
+        Check if the bot is is any voice channel
+        """
+        return bool(self.guild)
+
     async def connect(self, *, timeout: float, reconnect: bool, **kwargs) -> None:
         key_id, _ = self.channel._get_voice_client_key()
         state = self.channel._state
@@ -36,41 +43,19 @@ class WavelinkPlayer(wavelink.Player):
         ## end of connect method
         await self.set_filter(wavelink.Filter())
 
-    async def stop_all(self) -> None:
+    async def connect_and_move_to(self, voice_channel: discord.VoiceChannel):
         """
-        stops currenty playing track\n
-        clears the queue
+        Connect if not connected, then move to the voicechannel if not already in it
         """
-        # Clear player
-        self.queue.clear()
-        await super().stop()
+        # voice_client: discord.VoiceClient = discord.utils.get(self.client.voice_clients, guild=self.guild)
+        # if not voice_client.is_connected():
+        await self.connect(timeout=20, reconnect=True)
+        if self.channel.id != voice_channel.id:
+            await super().move_to(voice_channel)
 
-    async def next(self) -> None:
-        """
-        Skip to next song
-        """
-        if current := self.current:
-            setattr(self.current, 'interrupted_time', self.last_position)
-
-        if not self.queue.is_empty:
-            next_track = await self.queue.get_wait()
-            if current:
-                await self.history.put_wait(self.current)
-            await self.play(next_track, start=getattr(next_track, 'start_time', 0))
-        elif self.is_playing():
-            await super().stop()
-
-    async def previous(self) -> None:
-        """
-        plays previous track
-        """
-        if self.history.is_empty:
-            return
-        track: wavelink.Playable = self.history.pop()
-        if current := self.current:
-            setattr(current, 'interrupted_time', self.last_position)
-            self.queue.put_at_front(current)
-        await self.play(track, start=getattr(track, 'start_time', 0))
+    async def disconnect(self, **kwargs):
+        await self.stop_all()
+        await super().disconnect(**kwargs)
 
     async def play(
         self,
@@ -90,25 +75,6 @@ class WavelinkPlayer(wavelink.Player):
 
         await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
         self._paused = False  # because it doesnt update if player is paused and we start playing something
-
-    async def connect_and_move_to(self, voice_channel: discord.VoiceChannel):
-        """
-        Connect if not connected, then move to the voicechannel if not already in it
-        """
-        # voice_client: discord.VoiceClient = discord.utils.get(self.client.voice_clients, guild=self.guild)
-        # if not voice_client.is_connected():
-        await self.connect(timeout=20, reconnect=True)
-        if self.channel.id != voice_channel.id:
-            await super().move_to(voice_channel)
-
-    async def search_and_try_playing(self, search_query: str, force_play: bool = False) -> list[wavelink.Playable]:
-        """
-        Gets tracks from search_querry then tries to play them.\n
-        Returns found tracks
-        """
-        tracks = await self.search_tracks(search_query)
-        await self.try_playing(tracks, force_play=force_play)
-        return tracks
 
     async def try_playing(self, tracks: list[wavelink.Playable], force_play: bool = False) -> None:
         """
@@ -132,41 +98,6 @@ class WavelinkPlayer(wavelink.Player):
                 self.queue.put_at_index(len(tracks) - 1, current_track)
 
             await self.play(first_in_queue, start=getattr(first_in_queue, 'start_time', 0))
-
-    async def add_to_history(self, track: wavelink.Playable) -> None:
-        """
-        adds a track at the front of history queue
-        """
-        await self.history.put_wait(track)
-
-    def is_connected(self) -> bool:
-        """
-        Check if the bot is is any voice channel
-        """
-        return bool(self.guild)
-
-    async def toggle_pause(self):
-        """
-        toggles pause on or off
-        """
-        if not self.is_paused():
-            await self.pause()
-        else:
-            await self.resume()
-
-    async def toggle_cursed_filter(self):
-        """
-        toggles the 4th density filter
-        """
-        if not self.filter:
-            filter_ = wavelink.Filter(
-                tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
-                vibrato=wavelink.Vibrato(frequency=14, depth=1),
-                timescale=wavelink.Timescale(pitch=0.8),
-            )
-        else:
-            filter_ = wavelink.Filter()
-        await self.set_filter(filter_)
 
     async def search_tracks(self, search_phrase: str) -> list[wavelink.Playable]:
         """
@@ -225,6 +156,80 @@ class WavelinkPlayer(wavelink.Player):
             raise NoTracksFound
 
         return tracks
+
+    async def search_and_try_playing(self, search_query: str, force_play: bool = False) -> list[wavelink.Playable]:
+        """
+        Gets tracks from search_querry then tries to play them.\n
+        Returns found tracks
+        """
+        tracks = await self.search_tracks(search_query)
+        await self.try_playing(tracks, force_play=force_play)
+        return tracks
+
+    async def stop_all(self) -> None:
+        """
+        stops currenty playing track\n
+        clears the queue
+        """
+        # Clear player
+        self.queue.clear()
+        await super().stop()
+
+    async def next(self) -> None:
+        """
+        Skip to next song
+        """
+        if current := self.current:
+            setattr(self.current, 'interrupted_time', self.last_position)
+
+        if not self.queue.is_empty:
+            next_track = await self.queue.get_wait()
+            if current:
+                await self.history.put_wait(self.current)
+            await self.play(next_track, start=getattr(next_track, 'start_time', 0))
+        elif self.is_playing():
+            await super().stop()
+
+    async def previous(self) -> None:
+        """
+        plays previous track
+        """
+        if self.history.is_empty:
+            return
+        track: wavelink.Playable = self.history.pop()
+        if current := self.current:
+            setattr(current, 'interrupted_time', self.last_position)
+            self.queue.put_at_front(current)
+        await self.play(track, start=getattr(track, 'start_time', 0))
+
+    async def add_to_history(self, track: wavelink.Playable) -> None:
+        """
+        adds a track at the front of history queue
+        """
+        await self.history.put_wait(track)
+
+    async def toggle_pause(self):
+        """
+        toggles pause on or off
+        """
+        if not self.is_paused():
+            await self.pause()
+        else:
+            await self.resume()
+
+    async def toggle_cursed_filter(self):
+        """
+        toggles the 4th density filter
+        """
+        if not self.filter:
+            filter_ = wavelink.Filter(
+                tremolo=wavelink.Tremolo(frequency=4, depth=0.3),
+                vibrato=wavelink.Vibrato(frequency=14, depth=1),
+                timescale=wavelink.Timescale(pitch=0.8),
+            )
+        else:
+            filter_ = wavelink.Filter()
+        await self.set_filter(filter_)
 
 
 class WavelinkPlayerException(Exception):

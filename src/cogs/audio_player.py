@@ -86,7 +86,7 @@ class AudioPlayer(commands.Cog):
         Simple disconnect command.
         """
         voice_client: WavelinkPlayer = self.voice_clients[interaction.guild_id]
-        if not voice_client.is_connected():
+        if not voice_client.is_connected:
             await interaction.response.send_message(content='No bot in voice channel', ephemeral=True, delete_after=3)
             return
         await self._remove_view_and_disconnect(voice_client=voice_client)
@@ -124,7 +124,7 @@ class AudioPlayer(commands.Cog):
             return
 
         voice_client: WavelinkPlayer = self.voice_clients[interaction.guild_id]
-        if voice_client.is_connected():
+        if voice_client.is_connected:
             await voice_client.set_volume(value)
             await interaction.response.send_message(f"Value set to {value}", delete_after=15)
         else:
@@ -190,7 +190,7 @@ class AudioPlayer(commands.Cog):
         """
         await asyncio.sleep(delay)
         voice_client: WavelinkPlayer = self.voice_clients[guild_id]
-        if voice_client.is_connected() and len(voice_client.channel.members) == 1:
+        if voice_client.is_connected and len(voice_client.channel.members) == 1:
             await self._remove_view_and_disconnect(voice_client)
 
     async def _remove_view_and_disconnect(self, voice_client: WavelinkPlayer):

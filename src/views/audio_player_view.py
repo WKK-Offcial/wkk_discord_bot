@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 import discord
 import wavelink
+from discord.ext import commands
 
 from utils.decorators import (
+    button_cooldown,
     is_playing_check,
     run_threadsafe,
     user_bot_in_same_channel_check,
@@ -15,6 +17,7 @@ from utils.decorators import (
 from utils.wavelink_player import WavelinkPlayer
 
 if TYPE_CHECKING:
+    from cogs.audio_player import AudioPlayer
     from main import DiscordBot
 
 
@@ -28,33 +31,24 @@ class PlayerControlView(discord.ui.View):
         self.bot: DiscordBot = bot
         self.text_channel: discord.TextChannel = text_channel
         self.message_handle: discord.Message = None
+        self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
     @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
+    @button_cooldown
     async def undo_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Undo a song skip.
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
-        await interaction.response.defer()
         await voice_client.previous()
-
-        # last_track = await voice_client.history.get_wait()
-        # track_start_time = voice_client.track_start_times.get(last_track.title, 0)
-
-        # if voice_client.is_playing() or voice_client.is_paused():
-        #     current_track = voice_client.current
-        #     voice_client.queue.put_at_front(current_track)
-        #     await voice_client.play(last_track, start=track_start_time)
-        # else:
-        #     # Update embed since it won't be updated by on_track_end event
-        #     await voice_client.play(last_track, start=track_start_time)
-        #     if voice_client.history.count == 0:
-        #         self.undo_button.disabled = True
-        #     await self.update_message(voice_client)
+        self.update_buttons(voice_client)
+        embed = await self.calculate_embed(voice_client)
+        await interaction.response.edit_message(view=self, embed=embed)
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
+    @button_cooldown
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Pause/resume the player on button press
@@ -67,29 +61,37 @@ class PlayerControlView(discord.ui.View):
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Skip track on button press
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
-        await interaction.response.defer()
         await voice_client.next()
+        await self.wait_for_track_end()
+        self.update_buttons(voice_client)
+        embed = await self.calculate_embed(voice_client)
+        await interaction.response.edit_message(view=self, embed=embed)
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         Stop track on button press
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.stop_all()
+        await self.wait_for_track_end()
         self.update_buttons(voice_client)
-        await interaction.response.edit_message(view=self)
+        embed = await self.calculate_embed(voice_client)
+        await interaction.response.edit_message(view=self, embed=embed)
 
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     @user_bot_in_same_channel_check
     @is_playing_check
+    @button_cooldown
     async def filter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density
@@ -103,12 +105,7 @@ class PlayerControlView(discord.ui.View):
         """
         calculates state of buttons
         """
-        # fmt: off
-        self.undo_button.disabled = (
-            len(voice_client.queue.history) <= 1 and voice_client.current) or (
-            len(voice_client.queue.history) == 1 and not voice_client.current
-        )  # because current song is also in this queue
-        # fmt: on
+        self.undo_button.disabled = voice_client.history.is_empty
         self.pause_button.disabled = not voice_client.current
         self.pause_button.label = '▶ Resume' if voice_client.is_paused() else '❚❚ Pause'
         self.skip_button.disabled = not voice_client.current
@@ -118,6 +115,19 @@ class PlayerControlView(discord.ui.View):
         self.filter_button.emoji = (
             discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if voice_client.filter else None
         )
+
+    async def wait_for_track_end(self):
+        """
+        waits for the current track to end.\n
+        Useful because calling e.g. voice_client.skip() doesn't immidiately update voice_client correctly
+        so this helps ensure that update_buttons() will give correct result
+        """
+        guild_id = self.text_channel.guild.id
+        audio_player_cog: AudioPlayer = self.bot.cogs["AudioPlayer"]
+        signal = audio_player_cog.track_end_signals.get(guild_id)
+        if signal.is_set():
+            signal.clear()
+        await signal.wait()
 
     def remove_view(self):
         """
@@ -129,11 +139,10 @@ class PlayerControlView(discord.ui.View):
             self.clear_items()
             asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    async def update_message(self, voice_client: WavelinkPlayer):
+    async def calculate_embed(self, voice_client: WavelinkPlayer) -> discord.Embed:
         """
-        Removes last message and sends new one to keep it on the bottom of the chat\n
+        returns embed based on current state of voice_client
         """
-
         # Calculate queue time length
         total_seconds = 0
         for i in range(voice_client.queue.count):
@@ -171,7 +180,13 @@ class PlayerControlView(discord.ui.View):
             embed.add_field(name='Nothing is playing right now', value=':(', inline=True)
         embed.add_field(name='', value='▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁', inline=False)
         embed.set_footer(text='2137', icon_url='https://media.tenor.com/mc3OyxhLazUAAAAM/doggo-doge.gif')
+        return embed
 
+    async def replace_message(self, voice_client: WavelinkPlayer):
+        """
+        Removes last message and sends new one to keep it on the bottom of the chat\n
+        """
+        embed = await self.calculate_embed(voice_client)
         self.update_buttons(voice_client)
         self._replace_message(embed, loop=self.bot.loop)
 

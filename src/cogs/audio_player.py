@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from io import BytesIO
 from typing import TYPE_CHECKING
@@ -27,18 +28,18 @@ class AudioPlayer(commands.Cog):
 
     def __init__(self, bot: DiscordBot) -> None:
         self.bot: DiscordBot = bot
-        self.history: dict[int, list[tuple[wavelink.Playable, int]]] = {}
         self.voice_clients: dict[int, WavelinkPlayer] = {}
         self.views: dict[int, PlayerControlView] = {}
+        self.track_end_signals: dict[int, asyncio.Event] = {}
 
-    def init_voice_client(self):
+    def init_cog(self):
         """
         pupulate voice_client dictionary.\n
         Run this method after discord bot finished setting up
         """
-        # TODO dick comprehension
         for guild in self.bot.guilds:
             self.voice_clients[guild.id] = WavelinkPlayer(self.bot, guild.voice_channels[0])
+            self.track_end_signals[guild.id] = asyncio.Event()
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -46,7 +47,7 @@ class AudioPlayer(commands.Cog):
     @user_is_in_voice_channel_check
     async def play(self, interaction: discord.Interaction, search: str, force_play: bool | None) -> None:
         """
-        For soundboard type audio ID from list. For YouTube type url or search phrase. Force ignores queue and plays song immediately
+        For soundboard type audio ID from list. For YouTube type url or search phrase.
         """
         await interaction.response.send_message(f"Looking for {search}...")
         guild_id = interaction.guild_id
@@ -59,7 +60,7 @@ class AudioPlayer(commands.Cog):
             tracks = await voice_player.search_and_try_playing(search, force_play=force_play)
             await interaction.edit_original_response(content=f"Found \"{tracks[0].title}\".")
             view = self.get_view(interaction)
-            await view.update_message(voice_player)
+            await view.replace_message(voice_player)
 
         # Catch errors
         except NoTracksFound:
@@ -74,9 +75,6 @@ class AudioPlayer(commands.Cog):
             await interaction.edit_original_response(content="Type error!")
             logging.error(err)
         except InvalidLavalinkResponse as err:
-            # TODO: proper handling
-            #      restarting bot worked last time it happened.
-            #      check if simple reconnect to vc is enough if that happens again
             await interaction.edit_original_response(content="InvalidLavalinkResponse!")
             logging.error(err)
 
@@ -155,41 +153,19 @@ class AudioPlayer(commands.Cog):
         Callback function used for players to play next audio source in queue
         """
         voice_client: WavelinkPlayer = payload.player
-        guild_id = voice_client.guild.id
-        view = self.views.get(guild_id)
-        if view:
-            await view.update_message(voice_client)
+        guild_id = payload.player.guild.id
+        if payload.reason != 'REPLACED':
+            await voice_client.add_to_history(payload.track)
+            await voice_client.next()
 
-        # # # REPLACED means it was called from undo_button so we only need to update embed
-        # # if payload.reason == "REPLACED":
-        # #     # Disable undo button if there's nothing to undo
-        # #     if voice_client.history.count == 0:
-        # #         view.undo_button.disabled = True
-        # #     if not view.controls_enabled:
-        # #         view.enable_control_buttons()
-        # #     await view.send_embed(voice_client)
-        # #     return
+        # since we are not using autoplay we need to manualy play other song
+        if payload.reason == 'FINISHED':
+            view = self.views.get(guild_id)
+            if view:
+                await view.replace_message(voice_client)
 
-        # # Queue logic
-        # voice_client.history.put_at_front(payload.track)
-        # guild_queue = voice_client.queue
-        # if guild_queue.count > 0:
-        #     # Play next in queue
-        #     next_audio_track = await guild_queue.get_wait()
-        #     track_start_time = voice_client.track_start_times.get(next_audio_track.title, 0)
-        #     await voice_client.play(next_audio_track, start=track_start_time)
-        #     # Update view
-        #     if not view.controls_enabled:
-        #         view.enable_control_buttons()
-        #     view.undo_button.disabled = False
-        #     await view.update_message(voice_client)
-
-        # elif view:
-        #     # Update view
-        #     await voice_client.set_filter(wavelink.Filter())
-        #     view.disable_control_buttons()
-        #     view.undo_button.disabled = False
-        #     await view.send_embed(voice_client)
+        # lets the task waiting for this signal continue.
+        self.track_end_signals[guild_id].set()
 
     def get_view(self, interaction: discord.Interaction) -> PlayerControlView:
         """
@@ -203,19 +179,17 @@ class AudioPlayer(commands.Cog):
             self.views[guild_id] = view
         return view
 
-    async def disconnect_if_alone(self, guild_id):
+    async def disconnect_if_alone(self, guild_id: int, delay: int = 2):
         """
-        removes a view from given guild
+        removes a view from given guild and disconnects
         """
-        # this check is performed once when reciving "on_voice_state_update"
-        # then once again here to give user the grace period before disconecting
+        await asyncio.sleep(delay)
         voice_client: WavelinkPlayer = self.voice_clients[guild_id]
         if voice_client.is_connected() and len(voice_client.channel.members) == 1:
             await self._remove_view_and_disconnect(voice_client)
 
     async def _remove_view_and_disconnect(self, voice_client: WavelinkPlayer):
         guild_id = voice_client.guild.id
-        voice_client: WavelinkPlayer = self.bot.get_guild(guild_id).voice_client
         await voice_client.disconnect()
         if view := self.views.get(guild_id):
             view.remove_view()

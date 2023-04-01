@@ -1,6 +1,9 @@
+import logging
 import re
+
 import discord
 import wavelink
+
 from utils.discord_bot import DiscordBot
 from utils.endpoints import Endpoints
 
@@ -10,16 +13,31 @@ class WavelinkPlayer(wavelink.Player):
     Wavelink player subclass
     """
 
+    # TODO respect start times
+
     def __init__(self, client: DiscordBot, channel: discord.VoiceChannel) -> None:
+        self.history = wavelink.Queue()
         super().__init__(client, channel)
 
     async def connect(self, *, timeout: float, reconnect: bool, **kwargs) -> None:
-        if not self.is_connected():
-            key_id, _ = self.channel._get_voice_client_key()
-            state = self.channel._state
-            state._add_voice_client(key_id, self)
-            await super().connect(timeout=timeout, reconnect=reconnect, **kwargs)
-            await self.set_filter(wavelink.Filter())
+        key_id, _ = self.channel._get_voice_client_key()
+        state = self.channel._state
+        if state._get_voice_client(key_id):
+            return
+        state._add_voice_client(key_id, self)
+        ## basicaly original method of connecting but slightly changed so it supports our method of connecting
+        if self.channel is None:
+            raise RuntimeError('')
+
+        if not self._guild:
+            self._guild = self.channel.guild
+
+        if not self.current_node._players.get(self._guild.id):
+            self.current_node._players[self._guild.id] = self
+
+        await self.channel.guild.change_voice_state(channel=self.channel, **kwargs)
+        ## end of connect method
+        await self.set_filter(wavelink.Filter())
 
     async def stop_all(self) -> None:
         """
@@ -36,25 +54,39 @@ class WavelinkPlayer(wavelink.Player):
         """
         if not self.queue.is_empty:
             next_track = await self.queue.get_wait()
+            current = self.current
+            if isinstance(current, wavelink.Playable):
+                await self.history.put_wait(self.current)
+            else:
+                logging.warning("Tried putting %s into history queue", str(type(current)))
             await self.play(next_track)
         elif self.is_playing():
             await super().stop()
 
     async def previous(self) -> None:
         """
-        plays previous track0
+        plays previous track
         """
-
-        # TODO not working yet
-        if self.current and len(self.queue.history) == 1:
+        if self.history.is_empty:
             return
-
-        print(self.current.title)
-        song_index = bool(self.current)
-        for _ in range(song_index + 1):
-            track: wavelink.Playable = self.queue.history.pop()
-            print(track.title)
+        track: wavelink.Playable = self.history.pop()
+        if current := self.current:
+            self.queue.put_at_front(current)
         await self.play(track)
+
+    async def play(
+        self,
+        track: wavelink.Playable,
+        replace: bool = True,
+        start: int | None = None,
+        end: int | None = None,
+        volume: int | None = None,
+        *,
+        populate: bool = False,
+    ) -> wavelink.Playable:
+
+        await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
+        self._paused = False  # because it doesnt update if player is paused and we start playing something
 
     async def connect_and_move_to(self, voice_channel: discord.VoiceChannel):
         """
@@ -81,8 +113,6 @@ class WavelinkPlayer(wavelink.Player):
         If currently playing then just add tracks to queue\n
         Passing force_play stops currently played song and puts it behind force played tracks
         """
-        # TODO respect start times
-
         if force_play:
             tracks.reverse()  # we need to reverse list since we are using put_at_front later
         for track in tracks:
@@ -98,6 +128,12 @@ class WavelinkPlayer(wavelink.Player):
                 self.queue.put_at_index(len(tracks) - 1, current_track)
 
             await self.play(first_in_queue, start=getattr(first_in_queue, 'start_time', 0))
+
+    async def add_to_history(self, track: wavelink.Playable) -> None:
+        """
+        adds a track at the front of history queue
+        """
+        await self.history.put_wait(track)
 
     def is_connected(self) -> bool:
         """
@@ -140,44 +176,52 @@ class WavelinkPlayer(wavelink.Player):
         start_time: int = 0
         youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search_phrase)
         # Check if user wants to play audio from YouTube Playlist...
-        if youtube_playlist_regex and youtube_playlist_regex.groups():
-            safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
-            playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
-            for track in playlist.tracks:
-                setattr(track, 'start_time', start_time)
-            tracks = playlist.tracks
-        # ...or soundboard...
-        elif search_phrase.isdecimal():
-            sound_id = int(search_phrase)
-            guild_soundboard = Endpoints.get_soundboard(self.guild.id)
-            if not guild_soundboard or sound_id > len(guild_soundboard):
-                return None
+        try:
+            if youtube_playlist_regex and youtube_playlist_regex.groups():
+                safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
+                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
+                for track in playlist.tracks:
+                    setattr(track, 'start_time', start_time)
+                tracks = playlist.tracks
+            # ...or soundboard...
+            elif search_phrase.isdecimal():
+                sound_id = int(search_phrase)
+                guild_soundboard = Endpoints.get_soundboard(self.guild.id)
+                if not guild_soundboard or sound_id > len(guild_soundboard):
+                    tracks = None
 
-            file_name = guild_soundboard[int(search_phrase) - 1]
-            file_path = f'sounds/{str(self.guild.id)}/{file_name}'
-            track = await wavelink.GenericTrack.search(file_path, return_first=True)
-            setattr(track, 'start_time', start_time)
-            tracks = [track]
-        # ...Else search_phrase on youtube.
-        else:
-            # Check if start time was passed
-            start_time_regex = re.search(r"(?:[\?&])?t=([0-9]+)", search_phrase)
-            if start_time_regex and start_time_regex.groups()[0]:
-                start_time = int(start_time_regex.groups()[0]) * 1000
-
-            # We need to extract vid id because wavelink does not support shortened links
-            video_id_regex = re.search(r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search_phrase)
-            if video_id_regex and video_id_regex.groups()[0]:
-                safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
-                track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
+                file_name = guild_soundboard[int(search_phrase) - 1]
+                file_path = f'sounds/{str(self.guild.id)}/{file_name}'
+                track = await wavelink.GenericTrack.search(file_path, return_first=True)
                 setattr(track, 'start_time', start_time)
                 tracks = [track]
+            # ...Else search_phrase on youtube.
             else:
-                track = await wavelink.YouTubeTrack.search(search_phrase, return_first=True)
-                setattr(track, 'start_time', start_time)
-                tracks = [track]
+                # Check if start time was passed
+                start_time_regex = re.search(r"(?:[\?&])?t=([0-9]+)", search_phrase)
+                if start_time_regex and start_time_regex.groups()[0]:
+                    start_time = int(start_time_regex.groups()[0]) * 1000
+
+                # We need to extract vid id because wavelink does not support shortened links
+                video_id_regex = re.search(
+                    r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search_phrase
+                )
+                if video_id_regex and video_id_regex.groups()[0]:
+                    safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
+                    track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
+                    setattr(track, 'start_time', start_time)
+                    tracks = [track]
+                else:
+                    track = await wavelink.YouTubeTrack.search(search_phrase, return_first=True)
+                    setattr(track, 'start_time', start_time)
+                    tracks = [track]
+        except wavelink.NoTracksError:
+            tracks = None
+        if not tracks:
+            raise NoTracksFound
 
         return tracks
+
 
 class WavelinkPlayerException(Exception):
     """

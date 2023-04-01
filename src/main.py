@@ -11,7 +11,6 @@ from cogs.audio_player import AudioPlayer
 from cogs.bot_admin import BotAdmin
 from cogs.users_related import UsersRelated
 from utils.discord_bot import DiscordBot
-from utils.misc import delay_coro
 
 # Set up logger
 logging.basicConfig(level=logging.INFO)
@@ -69,18 +68,14 @@ class Bot:
             Event that occurrence one time when bot is ready to work
             """
             logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
-            self.audio_player.init_voice_client()
+            self.audio_player.init_cog()
 
         @self.bot.event
         async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
             """
             Event that occurrence whenever someone leaves/joins vc
             """
-            voice_state = member.guild.voice_client
-            # Checking if the bot is connected to a channel
-            # and if there is only 1 member connected to it (the bot itself)
-            if voice_state is not None and len(voice_state.channel.members) == 1:
-                await delay_coro(coro=self.audio_player.disconnect_if_alone(member.guild.id), seconds=60)
+            await self.audio_player.disconnect_if_alone(member.guild.id)
 
     async def run(self):
         """

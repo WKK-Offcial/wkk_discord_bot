@@ -157,20 +157,14 @@ class AudioPlayer(commands.Cog):
 
         # since we let the track finish we make sure interrupted_time is cleared
         if payload.reason == 'FINISHED':
-            setattr(payload.track, 'interrupted_time', 0)
-
-        if payload.reason != 'REPLACED':
-            await voice_client.add_to_history(payload.track)
-            await voice_client.next()
-
-        # since we are not using autoplay we need to manualy play other song
-        if payload.reason == 'FINISHED':
+            await voice_client.track_finished()
             view = self.views.get(guild_id)
             if view:
                 await view.replace_message(voice_client)
-
-        # lets the task waiting for this signal continue.
-        self.track_end_signals[guild_id].set()
+        else:
+            # lets the task waiting for this signal continue.
+            # we dont set it when payload.reason == 'FINISHED' because nothing waits for it
+            self.track_end_signals[guild_id].set()
 
     def get_view(self, interaction: discord.Interaction) -> PlayerControlView:
         """

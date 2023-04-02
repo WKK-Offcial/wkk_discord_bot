@@ -1,3 +1,4 @@
+import copy
 import re
 
 import discord
@@ -14,6 +15,9 @@ class WavelinkPlayer(wavelink.Player):
 
     def __init__(self, client: DiscordBot, channel: discord.VoiceChannel) -> None:
         self.history = wavelink.Queue()
+        self.start_times: dict[int, int] = {}  # title: time
+        self.interupt_times: dict[int, int] = {}  # title: time
+        self._current_track: wavelink.Playable | None = None
         super().__init__(client, channel)
 
     @property
@@ -47,8 +51,6 @@ class WavelinkPlayer(wavelink.Player):
         """
         Connect if not connected, then move to the voicechannel if not already in it
         """
-        # voice_client: discord.VoiceClient = discord.utils.get(self.client.voice_clients, guild=self.guild)
-        # if not voice_client.is_connected():
         await self.connect(timeout=20, reconnect=True)
         if self.channel.id != voice_channel.id:
             await super().move_to(voice_channel)
@@ -67,15 +69,34 @@ class WavelinkPlayer(wavelink.Player):
         *,
         populate: bool = False,
     ) -> wavelink.Playable:
-        if start is None:
-            start = 0
-        interrupted_time = getattr(track, 'interrupted_time', 0)
+        if start is not None:
+            raise ValueError('You should not pass start_time here. Consider using try_playing')
+        start = self.start_times.get(track.title, 0)
+        interrupted_time = self.interupt_times.get(track.title, 0)
         if interrupted_time > start:
             start = interrupted_time
         await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
         self._paused = False  # because it doesnt update if player is paused and we start playing something
+        self._current_track = track
 
-    async def try_playing(self, tracks: list[wavelink.Playable], force_play: bool | None = False) -> None:
+    async def track_finished(self):
+        """
+        plays the next song in queue if it exists.
+        Also adds the finished track to history
+        """
+        if self.is_playing():
+            raise ValueError('bot is playing right now')
+        self.interupt_times.pop(self._current_track.title, None)
+        await self.history.put_wait(self._current_track)
+        if not self.queue.is_empty:
+            first_in_queue = await self.queue.get_wait()
+            await self.play(track=first_in_queue)
+        else:
+            self._current_track = None
+
+    async def try_playing(
+        self, tracks: list[wavelink.Playable], *, start_time: int = 0, force_play: bool | None = False
+    ) -> None:
         """
         Tries to play the track.\n
         If currently playing then just add tracks to queue\n
@@ -84,6 +105,7 @@ class WavelinkPlayer(wavelink.Player):
         if force_play:
             tracks.reverse()  # we need to reverse list since we are using put_at_front later
         for track in tracks:
+            self.start_times[track.title] = start_time
             if force_play:
                 self.queue.put_at_front(track)
             else:
@@ -93,19 +115,20 @@ class WavelinkPlayer(wavelink.Player):
             first_in_queue = self.queue.get()
             if self.is_playing() or self.is_paused():
                 current_track = self.current
-                setattr(current_track, 'interrupted_time', self.last_position)
+                self.interupt_times[current_track.title] = self.last_position
                 self.queue.put_at_index(len(tracks) - 1, current_track)
-            # TODO: find other method of setting start_time and interrupted_time so that typehinting works
-            await self.play(first_in_queue, start=getattr(first_in_queue, 'start_time', 0))
+            await self.play(first_in_queue)
 
-    async def search_tracks(self, search_phrase: str) -> list[wavelink.Playable]:
+    async def search_tracks(self, search_phrase: str) -> tuple[list[wavelink.Playable], int]:
         """
         Decides which type of track should be used based on search phrase
         Args:
             search_phrase (str): text input from discord command user
 
         Returns:
-            list[wavelink.Playable]: list of tracks in case of playlist, list with single track otherwise
+            tuple[list[wavelink.Playable], int]: tuple with list of tracks in case of playlist with start_time = 0,\n
+            list with single track and start time otherwise.
+
         """
         start_time: int = 0
         youtube_playlist_regex = re.search(r"list=([^#\&\?]*).*", search_phrase)
@@ -114,8 +137,6 @@ class WavelinkPlayer(wavelink.Player):
             if youtube_playlist_regex and youtube_playlist_regex.groups():
                 safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
                 playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
-                for track in playlist.tracks:
-                    setattr(track, 'start_time', start_time)
                 tracks = playlist.tracks
             # ...or soundboard...
             elif search_phrase.isdecimal():
@@ -127,7 +148,6 @@ class WavelinkPlayer(wavelink.Player):
                 file_name = guild_soundboard[int(search_phrase) - 1]
                 file_path = f'sounds/{str(self.guild.id)}/{file_name}'
                 track = await wavelink.GenericTrack.search(file_path, return_first=True)
-                setattr(track, 'start_time', start_time)
                 tracks = [track]
             # ...Else search_phrase on youtube.
             else:
@@ -143,18 +163,16 @@ class WavelinkPlayer(wavelink.Player):
                 if video_id_regex and video_id_regex.groups()[0]:
                     safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
                     track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
-                    setattr(track, 'start_time', start_time)
                     tracks = [track]
                 else:
                     track = await wavelink.YouTubeTrack.search(search_phrase, return_first=True)
-                    setattr(track, 'start_time', start_time)
                     tracks = [track]
         except wavelink.NoTracksError:
             tracks = None
         if not tracks:
             raise NoTracksFound
 
-        return tracks
+        return tracks, start_time
 
     async def search_and_try_playing(
         self, search_query: str, force_play: bool | None = False
@@ -163,8 +181,8 @@ class WavelinkPlayer(wavelink.Player):
         Gets tracks from search_querry then tries to play them.\n
         Returns found tracks
         """
-        tracks = await self.search_tracks(search_query)
-        await self.try_playing(tracks, force_play=force_play)
+        tracks, start_time = await self.search_tracks(search_query)
+        await self.try_playing(tracks, start_time=start_time, force_play=force_play)
         return tracks
 
     async def stop_all(self) -> None:
@@ -174,20 +192,24 @@ class WavelinkPlayer(wavelink.Player):
         """
         # Clear player
         self.queue.clear()
+        await self.stop()
+
+    async def stop(self) -> None:
+        if current := self.current:
+            self.interupt_times[current.title] = self.last_position
+            await self.history.put_wait(current)
         await super().stop()
 
-    async def next(self) -> None:
+    async def skip(self) -> None:
         """
         Skip to next song
         """
         if current := self.current:
-            setattr(self.current, 'interrupted_time', self.last_position)
-
+            self.interupt_times[current.title] = self.last_position
+            await self.history.put_wait(current)
         if not self.queue.is_empty:
             next_track = await self.queue.get_wait()
-            if current:
-                await self.history.put_wait(self.current)
-            await self.play(next_track, start=getattr(next_track, 'start_time', 0))
+            await self.play(next_track)
         elif self.is_playing():
             await super().stop()
 
@@ -199,15 +221,9 @@ class WavelinkPlayer(wavelink.Player):
             return
         track: wavelink.Playable = self.history.pop()
         if current := self.current:
-            setattr(current, 'interrupted_time', self.last_position)
+            self.interupt_times[current.title] = self.last_position
             self.queue.put_at_front(current)
-        await self.play(track, start=getattr(track, 'start_time', 0))
-
-    async def add_to_history(self, track: wavelink.Playable) -> None:
-        """
-        adds a track at the front of history queue
-        """
-        await self.history.put_wait(track)
+        await self.play(track)
 
     async def toggle_pause(self):
         """

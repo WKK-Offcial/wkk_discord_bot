@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 from typing import TYPE_CHECKING
 
 import discord
@@ -44,7 +45,8 @@ class PlayerControlView(discord.ui.View):
         await voice_client.previous()
         self.update_buttons(voice_client)
         embed = await self.calculate_embed(voice_client)
-        await interaction.response.edit_message(view=self, embed=embed)
+        coro = interaction.response.edit_message(view=self, embed=embed)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
@@ -56,7 +58,8 @@ class PlayerControlView(discord.ui.View):
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.toggle_pause()
         self.update_buttons(voice_client)
-        await interaction.response.edit_message(view=self)
+        coro = interaction.response.edit_message(view=self)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
@@ -67,11 +70,12 @@ class PlayerControlView(discord.ui.View):
         Skip track on button press
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
-        await voice_client.next()
+        await voice_client.skip()
         await self.wait_for_track_end()
         self.update_buttons(voice_client)
         embed = await self.calculate_embed(voice_client)
-        await interaction.response.edit_message(view=self, embed=embed)
+        coro = interaction.response.edit_message(view=self, embed=embed)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
     @user_bot_in_same_channel_check
@@ -86,7 +90,8 @@ class PlayerControlView(discord.ui.View):
         await self.wait_for_track_end()
         self.update_buttons(voice_client)
         embed = await self.calculate_embed(voice_client)
-        await interaction.response.edit_message(view=self, embed=embed)
+        coro = interaction.response.edit_message(view=self, embed=embed)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
     @user_bot_in_same_channel_check
@@ -99,7 +104,8 @@ class PlayerControlView(discord.ui.View):
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.toggle_cursed_filter()
         self.update_buttons(voice_client)
-        await interaction.response.edit_message(view=self)
+        coro = interaction.response.edit_message(view=self)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     def update_buttons(self, voice_client: WavelinkPlayer):
         """
@@ -127,7 +133,10 @@ class PlayerControlView(discord.ui.View):
         signal = audio_player_cog.track_end_signals.get(guild_id)
         if signal.is_set():
             signal.clear()
-        await signal.wait()
+        try:
+            await asyncio.wait_for(signal.wait(), timeout=2)  # just to make sure it doesnt wait forever
+        except TimeoutError:
+            logging.warning('Timed out.')
 
     def remove_view(self):
         """

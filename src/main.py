@@ -13,7 +13,7 @@ from cogs.users_related import UsersRelated
 from utils.discord_bot import DiscordBot
 
 # Set up logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="[%(module)s][%(funcName)s]: %(message)s")
 # Load env variables from .env file
 load_dotenv()
 # Load static ffmpeg library

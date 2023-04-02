@@ -34,6 +34,10 @@ class PlayerControlView(discord.ui.View):
         self.message_handle: discord.Message | None = None
         self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
+    def __del__(self):
+        coro = self.message_handle.delete()
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
     @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple)
     @user_bot_in_same_channel_check
     @button_cooldown

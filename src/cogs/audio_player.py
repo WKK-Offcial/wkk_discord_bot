@@ -36,6 +36,9 @@ class AudioPlayer(commands.Cog):
         for voice_client in self.voice_clients.values():
             if hasattr(voice_client, '__del__'):
                 voice_client.__del__()
+        for view in self.views.values():
+            if hasattr(view, '__del__'):
+                view.__del__()
 
     def init_cog(self):
         """

@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import discord
@@ -18,6 +19,10 @@ class WavelinkPlayer(wavelink.Player):
         self.interupt_times: dict[int, int] = {}  # title: time
         self._current_track: wavelink.Playable | None = None
         super().__init__(client, channel)
+
+    def __del__(self):
+        coro = self.disconnect()
+        asyncio.run_coroutine_threadsafe(coro, self.client.loop)
 
     @property
     def is_connected(self) -> bool:

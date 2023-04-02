@@ -32,6 +32,11 @@ class AudioPlayer(commands.Cog):
         self.views: dict[int, PlayerControlView] = {}
         self.track_end_signals: dict[int, asyncio.Event] = {}
 
+    def __del__(self):
+        for voice_client in self.voice_clients.values():
+            if hasattr(voice_client, '__del__'):
+                voice_client.__del__()
+
     def init_cog(self):
         """
         pupulate voice_client dictionary.\n

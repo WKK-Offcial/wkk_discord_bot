@@ -1,5 +1,7 @@
 import logging
 import os
+from types import TracebackType
+from typing import Optional, Type
 
 import wavelink
 from discord import Intents
@@ -19,6 +21,18 @@ class DiscordBot(commands.Bot):
             description='The Boi is back',
             intents=intents,
         )
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        # run cogs destructors if defined
+        for cog in self.cogs.values():
+            if hasattr(cog, '__del__'):
+                cog.__del__()  # since just using del doesnt guarantee that destructor runs in async resource
+        return await super().__aexit__(exc_type, exc_value, traceback)
 
     async def setup_hook(self) -> None:
         """

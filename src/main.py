@@ -92,6 +92,9 @@ class Bot:
 
 
 def main():
+    """
+    Main function
+    """
     bot = Bot()
     try:
         asyncio.run(bot.run())

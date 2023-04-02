@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import signal
 import sys
 
 import discord
@@ -91,10 +92,19 @@ class Bot:
             await self.bot.start(os.getenv('BOT_TOKEN'))
 
 
+def sigterm_handler(signum, frame):
+    """
+    Handler for SIGTERM signal
+    """
+    logging.info('Recieved SIGTERM signal.\nExiting...')
+    sys.exit(1)
+
+
 def main():
     """
     Main function
     """
+
     bot = Bot()
     try:
         asyncio.run(bot.run())
@@ -104,4 +114,5 @@ def main():
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, sigterm_handler)
     main()

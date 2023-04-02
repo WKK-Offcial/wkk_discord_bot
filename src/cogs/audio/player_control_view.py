@@ -137,10 +137,9 @@ class PlayerControlView(discord.ui.View):
         guild_id = self.text_channel.guild.id
         audio_player_cog: AudioCog = self.bot.cogs["AudioCog"]
         signal = audio_player_cog.track_end_signals.get(guild_id)
-        if signal.is_set():
-            signal.clear()
         try:
             await asyncio.wait_for(signal.wait(), timeout=2)  # just to make sure it doesnt wait forever
+            signal.clear()
         except TimeoutError:
             logging.warning('Timed out.')
 

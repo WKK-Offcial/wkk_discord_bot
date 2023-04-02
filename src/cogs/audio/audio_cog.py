@@ -173,7 +173,7 @@ class AudioCog(commands.Cog):
         else:
             # lets the task waiting for this signal continue.
             # we dont set it when payload.reason == 'FINISHED' because nothing waits for it
-            self.track_end_signals[guild_id].set()
+            await self._set_track_end_signal(guild_id=guild_id)
 
     def get_view(self, interaction: discord.Interaction) -> PlayerControlView:
         """
@@ -202,3 +202,11 @@ class AudioCog(commands.Cog):
         if view := self.views.get(guild_id):
             view.remove_view()
             self.views.pop(guild_id)
+
+    async def _set_track_end_signal(self, *, guild_id: int, active_time: int = 2):
+        """
+        Sets the track end signal for given guild
+        """
+        self.track_end_signals[guild_id].set()
+        await asyncio.sleep(active_time)
+        self.track_end_signals[guild_id].clear()

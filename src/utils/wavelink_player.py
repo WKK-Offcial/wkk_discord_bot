@@ -1,4 +1,3 @@
-import copy
 import re
 
 import discord
@@ -69,20 +68,56 @@ class WavelinkPlayer(wavelink.Player):
         *,
         populate: bool = False,
     ) -> wavelink.Playable:
+        """
+        Play a WaveLink Track.
+
+        Parameters
+        ----------
+        track: :class:`tracks.Playable`
+            The :class:`tracks.Playable` track to start playing.
+        replace: bool
+            Whether this track should replace the current track. Defaults to ``True``.
+        start: Optional[int]
+            The position to start the track at in milliseconds.
+            Defaults to ``None`` which will start the track at the beginning.\n
+            * Left to have same signature as original play however should not be used.\n
+            * This play gets its start_times from start_times dict\n
+        end: Optional[int]
+            The position to end the track at in milliseconds.
+            Defaults to ``None`` which means it will play until the end.
+        volume: Optional[int]
+            Sets the volume of the player. Must be between ``0`` and ``1000``.
+            Defaults to ``None`` which will not change the volume.
+        populate: bool
+            Whether to populate the AutoPlay queue. This is done automatically when AutoPlay is on.
+            Defaults to False.
+
+        Returns
+        -------
+        :class:`tracks.Playable`
+            The track that is now playing.
+        """
+
         if start is not None:
             raise ValueError('You should not pass start_time here. Consider using try_playing')
         start = self.start_times.get(track.title, 0)
         interrupted_time = self.interupt_times.get(track.title, 0)
         if interrupted_time > start:
             start = interrupted_time
-        await super().play(track=track, replace=replace, start=start, end=end, volume=volume, populate=populate)
+        returned_track = await super().play(
+            track=track, replace=replace, start=start, end=end, volume=volume, populate=populate
+        )
         self._paused = False  # because it doesnt update if player is paused and we start playing something
         self._current_track = track
+        return returned_track
 
     async def track_finished(self):
         """
-        plays the next song in queue if it exists.
+        Plays the next song in queue if it exists.
         Also adds the finished track to history
+        If something is playing it raises exception.
+
+        Since we are not using autoplay thats how we get voiceplayer to play another track.
         """
         if self.is_playing():
             raise ValueError('bot is playing right now')
@@ -98,9 +133,11 @@ class WavelinkPlayer(wavelink.Player):
         self, tracks: list[wavelink.Playable], *, start_time: int = 0, force_play: bool | None = False
     ) -> None:
         """
-        Tries to play the track.\n
-        If currently playing then just add tracks to queue\n
-        Passing force_play stops currently played song and puts it behind force played tracks
+        Adds tracks to queue\n
+        If nothing is playing then plays the first track in queue\n
+        \n
+        When force_play is true adds track to the front of the queue then plays the first track no mather what\n
+        if track was playing it is moved to the history queue
         """
         if force_play:
             tracks.reverse()  # we need to reverse list since we are using put_at_front later
@@ -179,7 +216,7 @@ class WavelinkPlayer(wavelink.Player):
     ) -> list[wavelink.Playable]:
         """
         Gets tracks from search_querry then tries to play them.\n
-        Returns found tracks
+        Returns list of found tracks
         """
         tracks, start_time = await self.search_tracks(search_query)
         await self.try_playing(tracks, start_time=start_time, force_play=force_play)
@@ -195,6 +232,11 @@ class WavelinkPlayer(wavelink.Player):
         await self.stop()
 
     async def stop(self) -> None:
+        """
+        stops the currently playing track and add it to history.
+        Does nothing if nothing is playing.
+        """
+
         if current := self.current:
             self.interupt_times[current.title] = self.last_position
             await self.history.put_wait(current)
@@ -202,7 +244,7 @@ class WavelinkPlayer(wavelink.Player):
 
     async def skip(self) -> None:
         """
-        Skip to next song
+        Skip to next song if nothing in the queue it stops current track
         """
         if current := self.current:
             self.interupt_times[current.title] = self.last_position
@@ -215,7 +257,8 @@ class WavelinkPlayer(wavelink.Player):
 
     async def previous(self) -> None:
         """
-        plays previous track
+        plays previous track if available.
+        Does nothing if there is nothing in history
         """
         if self.history.is_empty:
             return

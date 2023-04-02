@@ -93,7 +93,6 @@ def is_playing_check(func):
     return decorator
 
 
-# TODO  make it better
 def button_cooldown(func):
     """
     Decorator for setting cooldown for buttons.\n

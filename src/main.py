@@ -1,20 +1,20 @@
 import asyncio
 import logging
 import os
+import sys
 
 import discord
 import sentry_sdk
 import static_ffmpeg
 from dotenv import load_dotenv
 
-from cogs.audio_player import AudioPlayer
+from cogs.audio.audio_cog import AudioCog
 from cogs.bot_admin import BotAdmin
-from cogs.users_related import UsersRelated
+from cogs.user_related import UserRelated
 from utils.discord_bot import DiscordBot
-from utils.misc import delay_coro
 
 # Set up logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="[%(module)s][%(funcName)s]: %(message)s")
 # Load env variables from .env file
 load_dotenv()
 # Load static ffmpeg library
@@ -55,8 +55,8 @@ class Bot:
         Create Cogs
         """
         self.bot_admin = BotAdmin(self.bot)
-        self.audio_player = AudioPlayer(self.bot)
-        self.users_related = UsersRelated(self.bot)
+        self.audio_player = AudioCog(self.bot)
+        self.users_related = UserRelated(self.bot)
 
     def setup_events(self):
         """
@@ -69,17 +69,14 @@ class Bot:
             Event that occurrence one time when bot is ready to work
             """
             logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
+            self.audio_player.init_cog()
 
         @self.bot.event
         async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
             """
             Event that occurrence whenever someone leaves/joins vc
             """
-            voice_state = member.guild.voice_client
-            # Checking if the bot is connected to a channel
-            # and if there is only 1 member connected to it (the bot itself)
-            if voice_state is not None and len(voice_state.channel.members) == 1:
-                await delay_coro(coro=self.audio_player.disconnect_when_alone(member.guild.id), seconds=60)
+            await self.audio_player.disconnect_if_alone(member.guild.id)
 
     async def run(self):
         """
@@ -94,5 +91,17 @@ class Bot:
             await self.bot.start(os.getenv('BOT_TOKEN'))
 
 
-bot = Bot()
-asyncio.run(bot.run())
+def main():
+    """
+    Main function
+    """
+    bot = Bot()
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        logging.info('Recieved interrupt signal.\nExiting...')
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

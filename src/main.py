@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 
 import discord
 import sentry_sdk
@@ -91,4 +92,8 @@ class Bot:
 
 
 bot = Bot()
-asyncio.run(bot.run())
+try:
+    asyncio.run(bot.run())
+except KeyboardInterrupt:
+    logging.info('Recieved interrupt signal.\nExiting...')
+    sys.exit(1)

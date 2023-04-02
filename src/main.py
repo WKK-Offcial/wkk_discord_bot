@@ -8,9 +8,9 @@ import sentry_sdk
 import static_ffmpeg
 from dotenv import load_dotenv
 
-from cogs.audio_player import AudioPlayer
+from cogs.audio.audio_cog import AudioCog
 from cogs.bot_admin import BotAdmin
-from cogs.users_related import UsersRelated
+from cogs.user_related import UserRelated
 from utils.discord_bot import DiscordBot
 
 # Set up logger
@@ -55,8 +55,8 @@ class Bot:
         Create Cogs
         """
         self.bot_admin = BotAdmin(self.bot)
-        self.audio_player = AudioPlayer(self.bot)
-        self.users_related = UsersRelated(self.bot)
+        self.audio_player = AudioCog(self.bot)
+        self.users_related = UserRelated(self.bot)
 
     def setup_events(self):
         """
@@ -91,9 +91,14 @@ class Bot:
             await self.bot.start(os.getenv('BOT_TOKEN'))
 
 
-bot = Bot()
-try:
-    asyncio.run(bot.run())
-except KeyboardInterrupt:
-    logging.info('Recieved interrupt signal.\nExiting...')
-    sys.exit(1)
+def main():
+    bot = Bot()
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        logging.info('Recieved interrupt signal.\nExiting...')
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

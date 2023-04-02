@@ -15,10 +15,12 @@ from utils.decorators import (
     run_threadsafe,
     user_bot_in_same_channel_check,
 )
-from utils.wavelink_player import WavelinkPlayer
+
+from .wavelink_player import WavelinkPlayer
 
 if TYPE_CHECKING:
-    from cogs.audio_player import AudioPlayer
+    from audio_cog import AudioCog
+
     from main import DiscordBot
 
 
@@ -133,7 +135,7 @@ class PlayerControlView(discord.ui.View):
         so this helps ensure that update_buttons() will give correct result
         """
         guild_id = self.text_channel.guild.id
-        audio_player_cog: AudioPlayer = self.bot.cogs["AudioPlayer"]
+        audio_player_cog: AudioCog = self.bot.cogs["AudioPlayer"]
         signal = audio_player_cog.track_end_signals.get(guild_id)
         if signal.is_set():
             signal.clear()

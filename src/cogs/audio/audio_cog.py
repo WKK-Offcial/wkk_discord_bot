@@ -13,14 +13,15 @@ from wavelink import InvalidLavalinkResponse
 
 from utils.decorators import user_is_in_voice_channel_check
 from utils.endpoints import Endpoints
-from utils.wavelink_player import NoTracksFound, WavelinkPlayer
-from views.audio_player_view import PlayerControlView
+
+from .player_control_view import PlayerControlView
+from .wavelink_player import NoTracksFound, WavelinkPlayer
 
 if TYPE_CHECKING:
     from main import DiscordBot
 
 
-class AudioPlayer(commands.Cog):
+class AudioCog(commands.Cog):
     """
     Class for music commands.
     self.views is dictionary that holds handle to a message with audio controls view {guild_id:view},

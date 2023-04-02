@@ -19,5 +19,5 @@ websockets==10.4
 yarl==1.8.2
 python-dotenv==1.0.0
 static-ffmpeg==2.5
-wavelink==2.0.3
+wavelink==2.1.0
 sentry_sdk==1.17.0

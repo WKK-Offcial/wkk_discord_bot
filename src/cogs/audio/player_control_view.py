@@ -119,6 +119,27 @@ class PlayerControlView(discord.ui.View):
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
+    @discord.ui.select(
+        cls=discord.ui.Select,
+        options=[discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)],
+        placeholder=NOTHING_IN_QUEUE_PLACEHOLDER,
+        max_values=1,
+        min_values=1,
+        disabled=True,
+        row=1,
+    )
+    async def queue_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        """
+        Allows selecting song from the queue and playing it
+        """
+        voice_client: WavelinkPlayer = interaction.guild.voice_client
+        await voice_client.play_from_queue(index=int(select.values[0]), history=False, force_play=True)
+        await self.wait_for_track_end()
+        self.update_view_state(voice_client)
+        embed = await self.calculate_embed(voice_client)
+        coro = interaction.response.edit_message(view=self, embed=embed)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
     @discord.ui.button(label='◀', style=discord.ButtonStyle.grey, row=2, disabled=True)
     @user_bot_in_same_channel_check
     @is_playing_check
@@ -142,26 +163,6 @@ class PlayerControlView(discord.ui.View):
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         self.queue_page += 1
         self.update_view_state(voice_client)
-        coro = interaction.response.edit_message(view=self)
-        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-
-    @discord.ui.select(
-        cls=discord.ui.Select,
-        options=[discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)],
-        placeholder=NOTHING_IN_QUEUE_PLACEHOLDER,
-        max_values=1,
-        min_values=1,
-        disabled=True,
-        row=1,
-    )
-    async def queue_select(self, interaction: discord.Interaction, select: discord.ui.Select):
-        """
-        Allows selecting song from the queue and playing it
-        """
-        voice_client: WavelinkPlayer = interaction.guild.voice_client
-        self.update_view_state(voice_client)
-        # TODO: implement action
-        print(select.values[0])
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 

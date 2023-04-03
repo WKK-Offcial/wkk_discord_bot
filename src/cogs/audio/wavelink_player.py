@@ -7,6 +7,8 @@ import wavelink
 from utils.discord_bot import DiscordBot
 from utils.endpoints import Endpoints
 
+from .wavelink_queue import WavelinkQueue
+
 
 class WavelinkPlayer(wavelink.Player):
     """
@@ -14,11 +16,12 @@ class WavelinkPlayer(wavelink.Player):
     """
 
     def __init__(self, client: DiscordBot, channel: discord.VoiceChannel) -> None:
-        self.history = wavelink.Queue()
+        self.history: WavelinkQueue = WavelinkQueue()
         self.start_times: dict[int, int] = {}  # title: time
         self.interupt_times: dict[int, int] = {}  # title: time
         self._current_track: wavelink.Playable | None = None
         super().__init__(client, channel)
+        self.queue: WavelinkQueue = WavelinkQueue()
 
     def __del__(self):
         coro = self.disconnect()
@@ -160,6 +163,17 @@ class WavelinkPlayer(wavelink.Player):
                 self.interupt_times[current_track.title] = self.last_position
                 self.queue.put_at_index(len(tracks) - 1, current_track)
             await self.play(first_in_queue)
+
+    async def play_from_queue(self, index: int, *, history: bool = False, force_play: bool = True) -> None:
+        """Plays the track from the queue from the given index and removes it from the queue
+
+        Args:
+            index (int): place in the queue
+            history (bool, optional): Whether to get track from current queue or history queue. Defaults to False.
+            force_play (bool, optional): Whether . Defaults to True.
+        """
+        track = self.history.pop_index(index) if history else self.queue.pop_index(index)
+        await self.try_playing([track], start_time=self.start_times.get(track.title, 0), force_play=force_play)
 
     async def search_tracks(self, search_phrase: str) -> tuple[list[wavelink.Playable], int]:
         """

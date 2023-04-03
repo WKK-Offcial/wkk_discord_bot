@@ -24,7 +24,8 @@ if TYPE_CHECKING:
     from main import DiscordBot
 
 
-NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in queue.'
+NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in current queue.'
+MAX_SELECT_LEN = 25
 
 
 class PlayerControlView(discord.ui.View):
@@ -133,7 +134,7 @@ class PlayerControlView(discord.ui.View):
         Allows selecting song from the queue and playing it
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
-        await voice_client.play_from_queue(index=int(select.values[0]), history=False, force_play=True)
+        await voice_client.play_from_queue(index=int(select.values[0]), history=self.queue_page < 0, force_play=True)
         await self.wait_for_track_end()
         self.update_view_state(voice_client)
         embed = await self.calculate_embed(voice_client)
@@ -142,7 +143,6 @@ class PlayerControlView(discord.ui.View):
 
     @discord.ui.button(label='◀', style=discord.ButtonStyle.grey, row=2, disabled=True)
     @user_bot_in_same_channel_check
-    @is_playing_check
     async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density
@@ -155,7 +155,6 @@ class PlayerControlView(discord.ui.View):
 
     @discord.ui.button(label='▶', style=discord.ButtonStyle.grey, row=2, disabled=True)
     @user_bot_in_same_channel_check
-    @is_playing_check
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density
@@ -186,14 +185,27 @@ class PlayerControlView(discord.ui.View):
         """
         calculates state of select window and related buttons
         """
-        first_index = self.queue_page * 25 + 1
-        last_index = (self.queue_page + 1) * 25
-        max_pages = max((len(voice_client.queue) - 1), 0) // 25
-        self.queue_page = min(self.queue_page, max_pages)
-        self.previous_page.disabled = self.queue_page <= 0
-        self.next_page.disabled = last_index > len(voice_client.queue)
-        self.queue_select.disabled = voice_client.queue.is_empty
-        if not voice_client.queue.is_empty:
+        queue_len = len(voice_client.queue)
+        history_len = len(voice_client.history)
+        max_pages = max(queue_len - 1, 0) // MAX_SELECT_LEN
+        min_pages = -(max(history_len - 1, 0) // MAX_SELECT_LEN) - 1 if history_len else 0
+        self.queue_page = min(max_pages, max(min_pages, self.queue_page))  # so page is correct on queue lenth change
+        if self.queue_page >= 0:
+            first_index = self.queue_page * MAX_SELECT_LEN + 1
+            last_index = (self.queue_page + 1) * MAX_SELECT_LEN
+        else:
+            first_index = (-self.queue_page - 1) * MAX_SELECT_LEN + 1
+            last_index = -self.queue_page * MAX_SELECT_LEN
+
+        self.previous_page.disabled = self.queue_page <= min_pages
+        self.next_page.disabled = self.queue_page >= max_pages
+        # fmt: off
+        self.queue_select.disabled = (
+            voice_client.queue.is_empty and self.queue_page >= 0) or (
+            voice_client.history.is_empty and self.queue_page < 0
+        )
+        # fmt: on
+        if not voice_client.queue.is_empty and self.queue_page >= 0:  # display current queue
             self.queue_select.options = [
                 discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(index))
                 for index, track in enumerate(voice_client.queue)
@@ -201,6 +213,15 @@ class PlayerControlView(discord.ui.View):
             ]
             self.queue_select.placeholder = (
                 f'Displaying: {first_index}-{min(last_index,len(voice_client.queue))} (current queue)'
+            )
+        elif self.queue_page < 0:  ## display history queue
+            self.queue_select.options = [
+                discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(index))
+                for index, track in enumerate(list(voice_client.history)[::-1])
+                if index + 1 >= first_index and index < last_index
+            ]
+            self.queue_select.placeholder = (
+                f'Displaying: {first_index}-{min(last_index,len(voice_client.history))} (history queue)'
             )
         else:
             self.queue_select.options = [discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)]
@@ -214,7 +235,7 @@ class PlayerControlView(discord.ui.View):
         """
         guild_id = self.text_channel.guild.id
         audio_player_cog: AudioCog = self.bot.cogs["AudioCog"]
-        signal = audio_player_cog.track_end_signals.get(guild_id)
+        signal = audio_player_cog.track_state_change.get(guild_id)
         try:
             await asyncio.wait_for(signal.wait(), timeout=2)  # just to make sure it doesnt wait forever
             signal.clear()

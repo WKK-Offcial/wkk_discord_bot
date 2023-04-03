@@ -31,7 +31,7 @@ class AudioCog(commands.Cog):
         self.bot: DiscordBot = bot
         self.voice_clients: dict[int, WavelinkPlayer] = {}
         self.views: dict[int, PlayerControlView] = {}
-        self.track_end_signals: dict[int, asyncio.Event] = {}
+        self.track_state_change: dict[int, asyncio.Event] = {}
 
     def __del__(self):
         for voice_client in self.voice_clients.values():
@@ -48,7 +48,7 @@ class AudioCog(commands.Cog):
         """
         for guild in self.bot.guilds:
             self.voice_clients[guild.id] = WavelinkPlayer(self.bot, guild.voice_channels[0])
-            self.track_end_signals[guild.id] = asyncio.Event()
+            self.track_state_change[guild.id] = asyncio.Event()
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -170,10 +170,17 @@ class AudioCog(commands.Cog):
             view = self.views.get(guild_id)
             if view:
                 await view.replace_message(voice_client)
-        else:
-            # lets the task waiting for this signal continue.
-            # we dont set it when payload.reason == 'FINISHED' because nothing waits for it
-            await self._set_track_end_signal(guild_id=guild_id)
+        # lets the task waiting for this signal continue.
+        await self._set_track_state_change_signal(guild_id=guild_id)
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_start(self, payload: wavelink.TrackEventPayload) -> None:
+        """
+        Callback used when new track starts playing
+        """
+        guild_id = payload.player.guild.id
+        # lets the task waiting for this signal continue.
+        await self._set_track_state_change_signal(guild_id=guild_id)
 
     def get_view(self, interaction: discord.Interaction) -> PlayerControlView:
         """
@@ -203,10 +210,10 @@ class AudioCog(commands.Cog):
             view.remove_view()
             self.views.pop(guild_id)
 
-    async def _set_track_end_signal(self, *, guild_id: int, active_time: int = 2):
+    async def _set_track_state_change_signal(self, *, guild_id: int, active_time: int = 1):
         """
         Sets the track end signal for given guild
         """
-        self.track_end_signals[guild_id].set()
+        self.track_state_change[guild_id].set()
         await asyncio.sleep(active_time)
-        self.track_end_signals[guild_id].clear()
+        self.track_state_change[guild_id].clear()

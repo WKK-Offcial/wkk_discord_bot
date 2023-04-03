@@ -28,7 +28,6 @@ NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in queue.'
 
 
 class PlayerControlView(discord.ui.View):
-
     """
     View class for controlling audio player through view
     """
@@ -192,9 +191,9 @@ class PlayerControlView(discord.ui.View):
                 for index, track in enumerate(voice_client.queue)
                 if index + 1 >= first_index and index < last_index
             ]
-            first_index = self.queue_page * 25 + 1
-            last_index = (self.queue_page + 1) * 25
-            self.queue_select.placeholder = f'Displaying: {first_index}-{last_index} (current queue)'
+            self.queue_select.placeholder = (
+                f'Displaying: {first_index}-{min(last_index,len(voice_client.queue))} (current queue)'
+            )
         else:
             self.queue_select.options = [discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)]
             self.queue_select.placeholder = NOTHING_IN_QUEUE_PLACEHOLDER
@@ -255,9 +254,9 @@ class PlayerControlView(discord.ui.View):
         # Create new embed
         embed = discord.Embed(title='The Boi', color=0x00FF00, timestamp=datetime.datetime.now(datetime.timezone.utc))
         if voice_client.queue.count > 0:
-            embed.add_field(name='Queue:', value=queue_preview, inline=True)
+            embed.add_field(name='Queue:', value=queue_preview, inline=False)
         if now_playing:
-            embed.add_field(name='Now Playing:', value=f'{now_playing.title}\n{now_playing_time}', inline=False)
+            embed.add_field(name='Now Playing:', value=f'{now_playing.title}\n{now_playing_time}', inline=True)
             thumbnail = await wavelink.YouTubeTrack.fetch_thumbnail(now_playing)
             if thumbnail:
                 embed.set_thumbnail(url=thumbnail)

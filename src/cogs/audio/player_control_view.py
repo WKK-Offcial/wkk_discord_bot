@@ -216,7 +216,7 @@ class PlayerControlView(discord.ui.View):
             )
         elif self.queue_page < 0:  ## display history queue
             self.queue_select.options = [
-                discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(index))
+                discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(history_len - 1 - index))
                 for index, track in enumerate(list(voice_client.history)[::-1])
                 if index + 1 >= first_index and index < last_index
             ]

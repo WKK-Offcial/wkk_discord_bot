@@ -129,6 +129,7 @@ class PlayerControlView(discord.ui.View):
         disabled=True,
         row=1,
     )
+    @user_bot_in_same_channel_check
     async def queue_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         """
         Allows selecting song from the queue and playing it

@@ -24,7 +24,11 @@ if TYPE_CHECKING:
     from main import DiscordBot
 
 
+NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in queue.'
+
+
 class PlayerControlView(discord.ui.View):
+
     """
     View class for controlling audio player through view
     """
@@ -34,13 +38,17 @@ class PlayerControlView(discord.ui.View):
         self.bot: DiscordBot = bot
         self.text_channel: discord.TextChannel = text_channel
         self.message_handle: discord.Message | None = None
+        self.queue_page: int = 0
         self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
     def __del__(self):
-        coro = self.message_handle.delete()
-        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+        try:
+            coro = self.message_handle.delete()
+            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+        except AttributeError:
+            pass
 
-    @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple, row=0)
     @user_bot_in_same_channel_check
     @button_cooldown
     async def undo_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -49,12 +57,12 @@ class PlayerControlView(discord.ui.View):
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.previous()
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         embed = await self.calculate_embed(voice_client)
         coro = interaction.response.edit_message(view=self, embed=embed)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple, row=0)
     @user_bot_in_same_channel_check
     @button_cooldown
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -63,11 +71,11 @@ class PlayerControlView(discord.ui.View):
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.toggle_pause()
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label='▶▶ Skip', style=discord.ButtonStyle.blurple, row=0)
     @user_bot_in_same_channel_check
     @is_playing_check
     @button_cooldown
@@ -78,12 +86,12 @@ class PlayerControlView(discord.ui.View):
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.skip()
         await self.wait_for_track_end()
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         embed = await self.calculate_embed(voice_client)
         coro = interaction.response.edit_message(view=self, embed=embed)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red)
+    @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red, row=0)
     @user_bot_in_same_channel_check
     @is_playing_check
     @button_cooldown
@@ -94,26 +102,71 @@ class PlayerControlView(discord.ui.View):
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.stop_all()
         await self.wait_for_track_end()
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         embed = await self.calculate_embed(voice_client)
         coro = interaction.response.edit_message(view=self, embed=embed)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey)
+    @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey, row=0)
     @user_bot_in_same_channel_check
     @is_playing_check
-    @button_cooldown
     async def filter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """
         fourth density
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         await voice_client.toggle_cursed_filter()
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    def update_buttons(self, voice_client: WavelinkPlayer):
+    @discord.ui.button(label='◀', style=discord.ButtonStyle.grey, row=2, disabled=True)
+    @user_bot_in_same_channel_check
+    @is_playing_check
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        fourth density
+        """
+        voice_client: WavelinkPlayer = interaction.guild.voice_client
+        self.queue_page -= 1
+        self.update_view_state(voice_client)
+        coro = interaction.response.edit_message(view=self)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
+    @discord.ui.button(label='▶', style=discord.ButtonStyle.grey, row=2, disabled=True)
+    @user_bot_in_same_channel_check
+    @is_playing_check
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        fourth density
+        """
+        voice_client: WavelinkPlayer = interaction.guild.voice_client
+        self.queue_page += 1
+        self.update_view_state(voice_client)
+        coro = interaction.response.edit_message(view=self)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
+    @discord.ui.select(
+        cls=discord.ui.Select,
+        options=[discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)],
+        placeholder=NOTHING_IN_QUEUE_PLACEHOLDER,
+        max_values=1,
+        min_values=1,
+        disabled=True,
+        row=1,
+    )
+    async def queue_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        """
+        Allows selecting song from the queue and playing it
+        """
+        voice_client: WavelinkPlayer = interaction.guild.voice_client
+        self.update_view_state(voice_client)
+        # TODO: implement action
+        print(select.values[0])
+        coro = interaction.response.edit_message(view=self)
+        asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
+    def update_view_state(self, voice_client: WavelinkPlayer):
         """
         calculates state of buttons
         """
@@ -127,6 +180,24 @@ class PlayerControlView(discord.ui.View):
         self.filter_button.emoji = (
             discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if voice_client.filter else None
         )
+        ## select related
+        first_index = self.queue_page * 25 + 1
+        last_index = (self.queue_page + 1) * 25
+        self.previous_page.disabled = self.queue_page <= 0
+        self.next_page.disabled = last_index > len(voice_client.queue)
+        self.queue_select.disabled = voice_client.queue.is_empty
+        if not voice_client.queue.is_empty:
+            self.queue_select.options = [
+                discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(index))
+                for index, track in enumerate(voice_client.queue)
+                if index + 1 >= first_index and index < last_index
+            ]
+            first_index = self.queue_page * 25 + 1
+            last_index = (self.queue_page + 1) * 25
+            self.queue_select.placeholder = f'Displaying: {first_index}-{last_index} (current queue)'
+        else:
+            self.queue_select.options = [discord.SelectOption(label=NOTHING_IN_QUEUE_PLACEHOLDER)]
+            self.queue_select.placeholder = NOTHING_IN_QUEUE_PLACEHOLDER
 
     async def wait_for_track_end(self) -> None:
         """
@@ -184,9 +255,9 @@ class PlayerControlView(discord.ui.View):
         # Create new embed
         embed = discord.Embed(title='The Boi', color=0x00FF00, timestamp=datetime.datetime.now(datetime.timezone.utc))
         if voice_client.queue.count > 0:
-            embed.add_field(name='Queue:', value=queue_preview, inline=False)
+            embed.add_field(name='Queue:', value=queue_preview, inline=True)
         if now_playing:
-            embed.add_field(name='Now Playing:', value=f'{now_playing.title}\n{now_playing_time}', inline=True)
+            embed.add_field(name='Now Playing:', value=f'{now_playing.title}\n{now_playing_time}', inline=False)
             thumbnail = await wavelink.YouTubeTrack.fetch_thumbnail(now_playing)
             if thumbnail:
                 embed.set_thumbnail(url=thumbnail)
@@ -201,7 +272,7 @@ class PlayerControlView(discord.ui.View):
         Removes last message and sends new one to keep it on the bottom of the chat\n
         """
         embed = await self.calculate_embed(voice_client)
-        self.update_buttons(voice_client)
+        self.update_view_state(voice_client)
         self._replace_message(embed, loop=self.bot.loop)
 
     @run_threadsafe

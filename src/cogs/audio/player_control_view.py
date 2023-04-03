@@ -149,7 +149,7 @@ class PlayerControlView(discord.ui.View):
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         self.queue_page -= 1
-        self.update_view_state(voice_client)
+        self.update_select_state(voice_client)
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
@@ -162,13 +162,13 @@ class PlayerControlView(discord.ui.View):
         """
         voice_client: WavelinkPlayer = interaction.guild.voice_client
         self.queue_page += 1
-        self.update_view_state(voice_client)
+        self.update_select_state(voice_client)
         coro = interaction.response.edit_message(view=self)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     def update_view_state(self, voice_client: WavelinkPlayer):
         """
-        calculates state of buttons
+        calculates state of view
         """
         self.undo_button.disabled = voice_client.history.is_empty
         self.pause_button.disabled = not voice_client.current
@@ -180,9 +180,16 @@ class PlayerControlView(discord.ui.View):
         self.filter_button.emoji = (
             discord.PartialEmoji.from_str('<a:amogus:1088546951949209620>') if voice_client.filter else None
         )
-        ## select related
+        self.update_select_state(voice_client)
+
+    def update_select_state(self, voice_client: WavelinkPlayer):
+        """
+        calculates state of select window and related buttons
+        """
         first_index = self.queue_page * 25 + 1
         last_index = (self.queue_page + 1) * 25
+        max_pages = max((len(voice_client.queue) - 1), 0) // 25
+        self.queue_page = min(self.queue_page, max_pages)
         self.previous_page.disabled = self.queue_page <= 0
         self.next_page.disabled = last_index > len(voice_client.queue)
         self.queue_select.disabled = voice_client.queue.is_empty

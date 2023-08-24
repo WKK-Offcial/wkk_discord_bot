@@ -192,8 +192,8 @@ class WavelinkPlayer(wavelink.Player):
         try:
             if youtube_playlist_regex and youtube_playlist_regex.groups():
                 safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
-                playlist = await wavelink.YouTubePlaylist.search(safe_url, return_first=True)
-                tracks = playlist.tracks
+                playlist = await wavelink.YouTubePlaylist.search(safe_url)
+                tracks = playlist[0].tracks
             # ...or soundboard...
             elif search_phrase.isdecimal():
                 sound_id = int(search_phrase)
@@ -203,8 +203,8 @@ class WavelinkPlayer(wavelink.Player):
 
                 file_name = guild_soundboard[int(search_phrase) - 1]
                 file_path = f'sounds/{str(self.guild.id)}/{file_name}'
-                track = await wavelink.GenericTrack.search(file_path, return_first=True)
-                tracks = [track]
+                track = await wavelink.GenericTrack.search(file_path)
+                tracks = [track[0]]
             # ...Else search_phrase on youtube.
             else:
                 # Check if start time was passed
@@ -218,11 +218,11 @@ class WavelinkPlayer(wavelink.Player):
                 )
                 if video_id_regex and video_id_regex.groups()[0]:
                     safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'
-                    track = await wavelink.YouTubeTrack.search(safe_url, return_first=True)
-                    tracks = [track]
+                    track = await wavelink.YouTubeTrack.search(safe_url)
+                    tracks = [track[0]]
                 else:
-                    track = await wavelink.YouTubeTrack.search(search_phrase, return_first=True)
-                    tracks = [track]
+                    track = await wavelink.YouTubeTrack.search(search_phrase)
+                    tracks = [track[0]]
         except wavelink.NoTracksError:
             tracks = None
         if not tracks:

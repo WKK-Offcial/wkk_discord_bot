@@ -35,14 +35,18 @@ class WavelinkPlayer(wavelink.Player):
         return bool(self.guild)
 
     async def connect(self, *, timeout: float, reconnect: bool, **kwargs) -> None:
+        voice_channel = kwargs.get("voice_channel", None)
+        if voice_channel is None:
+            raise RuntimeError('voice_channel not passed')
+        del kwargs["voice_channel"]
+        if self.channel is None:
+            self.channel = voice_channel
         key_id, _ = self.channel._get_voice_client_key()
         state = self.channel._state
         if state._get_voice_client(key_id):
             return
         state._add_voice_client(key_id, self)
         ## basicaly original method of connecting but slightly changed so it supports our method of connecting
-        if self.channel is None:
-            raise RuntimeError('')
 
         if not self._guild:
             self._guild = self.channel.guild
@@ -58,7 +62,7 @@ class WavelinkPlayer(wavelink.Player):
         """
         Connect if not connected, then move to the voicechannel if not already in it
         """
-        await self.connect(timeout=20, reconnect=True)
+        await self.connect(timeout=20, reconnect=True, voice_channel=voice_channel)
         if self.channel.id != voice_channel.id:
             await super().move_to(voice_channel)
 

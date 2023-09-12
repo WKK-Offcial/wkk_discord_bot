@@ -200,7 +200,7 @@ class AudioCog(commands.Cog):
         """
         await asyncio.sleep(delay)
         voice_client: WavelinkPlayer = self.voice_clients[guild_id]
-        if voice_client.is_connected and len(voice_client.channel.members) == 1:
+        if voice_client.channel and voice_client.is_connected and len(voice_client.channel.members) == 1:
             await self._remove_view_and_disconnect(voice_client)
 
     async def _remove_view_and_disconnect(self, voice_client: WavelinkPlayer):

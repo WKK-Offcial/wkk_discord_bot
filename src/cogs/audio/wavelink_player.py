@@ -197,7 +197,7 @@ class WavelinkPlayer(wavelink.Player):
             if youtube_playlist_regex and youtube_playlist_regex.groups():
                 safe_url = f'https://www.youtube.com/playlist?list={youtube_playlist_regex.groups()[0]}'
                 playlist = await wavelink.YouTubePlaylist.search(safe_url)
-                tracks = playlist[0].tracks
+                tracks = playlist.tracks
             # ...or soundboard...
             elif search_phrase.isdecimal():
                 sound_id = int(search_phrase)

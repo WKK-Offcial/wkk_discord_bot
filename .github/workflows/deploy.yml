@@ -115,7 +115,7 @@ jobs:
           -e WAVELINK_PORT=$WAVELINK_PORT \
           -e WAVELINK_PASSWORD=$WAVELINK_PASSWORD \
           -e SENTRY_KEY=$SENTRY_KEY \
-          -v /home/ec2-user/soundboards:/wkk-bot/cache/soundboards \
+          -v /home/opc/soundboards:/wkk-bot/cache/soundboards \
           --name $DOCKER_BOI_NAME \
           $DOCKER_BOI_IMAGE
 

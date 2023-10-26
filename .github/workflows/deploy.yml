@@ -93,7 +93,7 @@ jobs:
         WAVELINK_PASSWORD: ${{ secrets.WAVELINK_PASSWORD }}
       with:
         host: ${{secrets.BOI_HOSTNAME}}
-        username: ec2-user
+        username: opc
         key: ${{secrets.BOI_PRIVATE_KEY}}
         envs: DISCORD_TOKEN, SERVER_IP, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
         script_stop: true

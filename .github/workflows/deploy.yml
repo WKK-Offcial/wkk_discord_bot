@@ -3,6 +3,7 @@ name: Deploy on EC2
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 
 jobs:
   tests:

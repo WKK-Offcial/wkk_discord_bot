@@ -218,7 +218,7 @@ class WavelinkPlayer(wavelink.Player):
 
                 # We need to extract vid id because wavelink does not support shortened links
                 video_id_regex = re.search(
-                    r"youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search_phrase
+                    r"youtu(?:be\.com\/watch\?[^\s]*v=|\.be\/)([\w\-\_]*)(&(amp;)?[\w\?=]*)?", search_phrase
                 )
                 if video_id_regex and video_id_regex.groups()[0]:
                     safe_url = f'https://www.youtube.com/watch?v={video_id_regex.groups()[0]}'

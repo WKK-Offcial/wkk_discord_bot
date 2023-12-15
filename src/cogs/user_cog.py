@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from __main__ import DiscordBot
 
 
-class UserRelated(commands.Cog):
+class UserCog(commands.Cog):
     """
     Class for commands related with users
     """

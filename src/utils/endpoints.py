@@ -46,4 +46,6 @@ class Endpoints:
                 message = f'Upload failed, server code:{response.status_code}'
         except requests.exceptions.ConnectTimeout:
             message = 'Upload failed, request timed out.'
+        except requests.exceptions.ReadTimeout:
+            message = 'Upload failed, request timed out.'
         return message

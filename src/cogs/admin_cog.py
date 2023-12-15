@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from main import DiscordBot
 
 
-class BotAdmin(commands.Cog):
+class AdminCog(commands.Cog):
     """
     Class used for administrative bot commands
     """

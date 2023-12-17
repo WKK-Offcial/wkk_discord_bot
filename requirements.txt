@@ -20,4 +20,3 @@ yarl==1.9.2
 python-dotenv==1.0.0
 static-ffmpeg==2.5
 wavelink==3.1.0
-sentry-sdk==1.39.1

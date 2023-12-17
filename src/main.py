@@ -5,13 +5,12 @@ import signal
 import sys
 
 import discord
-import sentry_sdk
 import static_ffmpeg
 from dotenv import load_dotenv
 
-from cogs.audio.audio_cog import AudioCog
-from cogs.bot_admin import BotAdmin
-from cogs.user_related import UserRelated
+from cogs.audio_cog import AudioCog
+from cogs.admin_cog import AdminCog
+from cogs.user_cog import UserCog
 from utils.discord_bot import DiscordBot
 
 # Set up logger
@@ -28,19 +27,6 @@ elif os.name == 'posix':
 if not discord.opus.is_loaded():
     raise RuntimeError('Opus failed to load!')
 
-if key := os.getenv("SENTRY_KEY", None):
-    sentry_sdk.init(
-        dsn=key,
-        # Set tracesSampleRate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production
-        traces_sample_rate=1.0,
-        _experiments={
-            "profiles_sample_rate": 1.0,
-        },
-    )
-
-
 class Bot:
     """
     Main Bot class
@@ -55,9 +41,9 @@ class Bot:
         """
         Create Cogs
         """
-        self.bot_admin = BotAdmin(self.bot)
-        self.audio_player = AudioCog(self.bot)
-        self.users_related = UserRelated(self.bot)
+        self.bot_admin = AdminCog(self.bot)
+        self.audio = AudioCog(self.bot)
+        self.users_related = UserCog(self.bot)
 
     def setup_events(self):
         """
@@ -70,14 +56,15 @@ class Bot:
             Event that occurrence one time when bot is ready to work
             """
             logging.info('Logged in as %s (ID: %d)\n-----------\n', self.bot.user, self.bot.user.id)
-            self.audio_player.init_cog()
 
         @self.bot.event
         async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
             """
             Event that occurrence whenever someone leaves/joins vc
             """
-            await self.audio_player.disconnect_if_alone(member.guild.id)
+            player = member.guild.voice_client
+            if player:
+                await self.audio.disconnect_if_alone(player, 10)
 
     async def run(self):
         """
@@ -88,7 +75,7 @@ class Bot:
         async with self.bot:
             await self.bot.add_cog(self.bot_admin)
             await self.bot.add_cog(self.users_related)
-            await self.bot.add_cog(self.audio_player)
+            await self.bot.add_cog(self.audio)
             await self.bot.start(os.getenv('BOT_TOKEN'))
 
 

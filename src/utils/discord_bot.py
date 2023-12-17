@@ -41,7 +41,7 @@ class DiscordBot(commands.Bot):
         node_url = f"{os.getenv('WAVELINK_URL')}:{os.getenv('WAVELINK_PORT')}"
         node: wavelink.Node = wavelink.Node(uri=node_url, password=os.getenv('WAVELINK_PASSWORD'))
         try:
-            await wavelink.NodePool.connect(client=self, nodes=[node])
+            await wavelink.Pool.connect(client=self, nodes=[node])
         except wavelink.exceptions.WavelinkException as err:
             logging.warning("Could not connect to lavalink!")
             logging.warning(err)

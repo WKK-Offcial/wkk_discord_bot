@@ -1,8 +1,10 @@
 import asyncio
 import functools
 import inspect
+from typing import cast
 
 import discord
+import wavelink
 
 
 def bot_is_in_voice_channel_check(func):
@@ -17,8 +19,8 @@ def bot_is_in_voice_channel_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        bot_vc = interaction.guild.voice_client
-        if not bot_vc:
+        player = cast(wavelink.Player, interaction.guild.voice_client)
+        if not player:
             await interaction.response.send_message("Bot not in voice channel", delete_after=3, ephemeral=True)
             return
         await func(*args, **kwargs)
@@ -38,8 +40,8 @@ def user_is_in_voice_channel_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        user_vc = interaction.user.voice
-        if not user_vc:
+        voice_channel = interaction.user.voice
+        if not voice_channel:
             await interaction.response.send_message(
                 "You can't control the bot because you're not in a voice channel", delete_after=3, ephemeral=True
             )
@@ -62,8 +64,8 @@ def user_bot_in_same_channel_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        bot_vc, user_vc = interaction.guild.voice_client, interaction.user.voice
-        if not (bot_vc and user_vc and bot_vc.channel.id == user_vc.channel.id):
+        player, voice_channel = cast(wavelink.Player, interaction.guild.voice_client), interaction.user.voice
+        if not (player and voice_channel and player.channel.id == voice_channel.channel.id):
             msg = "You can't control the bot because you're not on the same voice channel"
             await interaction.response.send_message(msg, delete_after=3, ephemeral=True)
             return
@@ -84,8 +86,8 @@ def is_playing_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        bot_vc = interaction.guild.voice_client
-        if not bot_vc.is_playing():
+        player = cast(wavelink.Player, interaction.guild.voice_client)
+        if not player.playing:
             await interaction.response.send_message("Nothing is playing right now", delete_after=3, ephemeral=True)
             return
         await func(*args, **kwargs)

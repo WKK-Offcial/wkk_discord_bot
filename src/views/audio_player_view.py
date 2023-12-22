@@ -125,6 +125,8 @@ class AudioPlayerView(discord.ui.View):
         player = cast(wavelink.Player, interaction.guild.voice_client)
         player.queue.clear()
         await player.skip()
+        await player.set_filters()
+        self.filters_applied = False
         await interaction.response.defer()
 
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey, row=0)
@@ -307,7 +309,7 @@ class AudioPlayerView(discord.ui.View):
         self.pause_button.disabled = not player.playing
         self.skip_button.disabled = not player.playing
         self.stop_button.disabled = not player.playing
-        self.filter_button.disabled = False
+        self.filter_button.disabled = not player.playing
         self.filter_button.label = amogus if not self.filters_applied else ''
         self.filter_button.emoji = dancing_black_man if self.filters_applied else None
         self._update_track_selection_buttons()

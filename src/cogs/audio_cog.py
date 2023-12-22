@@ -259,23 +259,6 @@ class AudioCog(commands.Cog):
             view.remove_view()
             self.views.pop(guild_id)
 
-    # @commands.Cog.listener()
-    # async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
-    #     """
-    #     Callback used when new track starts playing
-    #     Used to update embed wherever player changes track
-    #     """
-    #     player = payload.player
-    #     view = self.views.get(player.guild.id)
-    #     history = player.queue.history
-    #     # Wait for track history update (should happen instantly but sometimes it doesn't)
-    #     while True:
-    #         await asyncio.sleep(0.1)
-    #         if len(history) > 0 and history[-1] == player.current:
-    #             break
-
-    #     await view.send_embed()
-
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload) -> None:
         """

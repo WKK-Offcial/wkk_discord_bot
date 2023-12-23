@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from cogs.audio_cog import AudioCog
 from cogs.admin_cog import AdminCog
 from cogs.user_cog import UserCog
-from utils.discord_bot import DiscordBot
+from discord_bot import DiscordBot
 
 # Set up logger
 logging.basicConfig(level=logging.INFO, format="[%(module)s][%(funcName)s]: %(message)s")
@@ -64,7 +64,7 @@ class Bot:
             """
             player = member.guild.voice_client
             if player:
-                await self.audio.disconnect_if_alone(player, 10)
+                await self.audio.disconnect_player_if_alone_in_channel(player, 10)
 
     async def run(self):
         """

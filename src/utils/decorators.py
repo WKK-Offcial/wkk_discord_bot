@@ -2,6 +2,7 @@ import asyncio
 import functools
 import inspect
 from typing import cast
+from audio_player import AudioPlayer
 
 import discord
 import wavelink
@@ -19,7 +20,7 @@ def bot_is_in_voice_channel_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         if not player:
             await interaction.response.send_message("Bot not in voice channel", delete_after=3, ephemeral=True)
             return
@@ -64,7 +65,7 @@ def user_bot_in_same_channel_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        player, voice_channel = cast(wavelink.Player, interaction.guild.voice_client), interaction.user.voice
+        player, voice_channel = cast(AudioPlayer, interaction.guild.voice_client), interaction.user.voice
         if not (player and voice_channel and player.channel.id == voice_channel.channel.id):
             msg = "You can't control the bot because you're not on the same voice channel"
             await interaction.response.send_message(msg, delete_after=3, ephemeral=True)
@@ -86,7 +87,7 @@ def is_playing_check(func):
         if interaction is None:
             raise ValueError("Interaction is None")
 
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         if not player.playing:
             await interaction.response.send_message("Nothing is playing right now", delete_after=3, ephemeral=True)
             return

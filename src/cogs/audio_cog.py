@@ -10,15 +10,14 @@ import discord
 import wavelink
 from discord import app_commands
 from discord.ext import commands
-
 from utils.decorators import user_is_in_voice_channel_check
 from utils.endpoints import Endpoints
 from views.audio_player_view import AudioPlayerView
 from exceptions.wavelink_exceptions import YoutubeTrackNotFound, UnexpectedPlayableType
 from exceptions.user_exceptions import SoundboardTrackNotFound
-
-if TYPE_CHECKING:
-    from main import DiscordBot
+from exceptions.exception_handler import ExceptionHandler
+from audio_player import AudioPlayer
+from discord_bot import DiscordBot
 
 
 class AudioCog(commands.Cog):
@@ -28,8 +27,9 @@ class AudioCog(commands.Cog):
     """
 
     def __init__(self, bot: DiscordBot) -> None:
-        self.bot: DiscordBot = bot
+        self.bot = bot
         self.views: dict[int, AudioPlayerView] = {}
+        self.exception_handler = ExceptionHandler()
 
     def __del__(self):
         for view in self.views.values():
@@ -41,7 +41,7 @@ class AudioCog(commands.Cog):
     @commands.guild_only()
     @app_commands.command(name="play")
     @user_is_in_voice_channel_check
-    async def play(self, interaction: discord.Interaction, search: str, force_play: bool | None) -> None:
+    async def play(self, interaction: discord.Interaction, search: str) -> None:
         """
         To use soundboard type audio ID from list. To use YouTube type url or a search phrase.
         """
@@ -49,11 +49,10 @@ class AudioCog(commands.Cog):
         guild_id = interaction.guild_id
         user_channel = interaction.user.voice.channel
 
-
         # Connect to vc or change vc to the one caller is in
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         if not player or not player.connected:
-            player = await user_channel.connect(cls=wavelink.Player, timeout=20)
+            player = await user_channel.connect(cls=AudioPlayer, timeout=20)
         elif player.channel != user_channel:
             await player.move_to(user_channel)
 
@@ -62,7 +61,6 @@ class AudioCog(commands.Cog):
             view = AudioPlayerView(self.bot, interaction.channel)
             self.views[guild_id] = view
 
-        player.autoplay = wavelink.AutoPlayMode.partial
         try:
             result, start_time = await self.__search_tracks(search, guild_id)
             if isinstance(result, wavelink.Playlist):
@@ -70,30 +68,12 @@ class AudioCog(commands.Cog):
             else:
                 await interaction.edit_original_response(content=f"Found \"{result.title}\".")
 
-            await player.queue.put_wait(result)
-            if not player.playing:
-                await player.play(player.queue.get(), start=start_time)
+            await player.play_track(result, start_time)
             await view.send_embed()
+        except Exception as err:
+            message = self.exception_handler.handle(err)
+            await interaction.edit_original_response(content=message)
 
-        # Catch errors
-        except YoutubeTrackNotFound as err:
-            await interaction.edit_original_response(content="Youtube track not found!")
-            logging.error(err)
-        except SoundboardTrackNotFound as err:
-            await interaction.edit_original_response(content="Soundboard track not found!")
-            logging.error(err)
-        except UnexpectedPlayableType as err:
-            await interaction.edit_original_response(content="Server returned unexpected type!")
-            logging.error(err)
-        except SyntaxError as err:
-            await interaction.edit_original_response(content='No argument passed!')
-            logging.error(err.msg)
-        except IndexError as err:
-            await interaction.edit_original_response(content='No such number in soundboard')
-            logging.error(err)
-        except TypeError as err:
-            await interaction.edit_original_response(content="Type error!")
-            logging.error(err)
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -103,7 +83,7 @@ class AudioCog(commands.Cog):
         """
         To use soundboard type audio ID from list. To use YouTube type url or a search phrase.
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         await player.skip()
 
         if player.queue:
@@ -118,13 +98,13 @@ class AudioCog(commands.Cog):
         """
         Simple disconnect command.
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         if not player.connected:
             await interaction.response.send_message(content='Bot is not connected to any voice channel',
                                                     ephemeral=True,
                                                     delete_after=3)
             return
-        await self.__remove_view_and_disconnect(player)
+        await self.__remove_view_and_disconnect_player(player)
 
         await interaction.response.send_message(content='Bot disconnected', ephemeral=True, delete_after=3)
 
@@ -159,7 +139,7 @@ class AudioCog(commands.Cog):
             await interaction.response.send_message("Value must be between 0 and 100", ephemeral=True, delete_after=3)
             return
 
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         if player.connected:
             await player.set_volume(value)
             await interaction.response.send_message(f"Value set to {value}", delete_after=15)
@@ -243,16 +223,20 @@ class AudioCog(commands.Cog):
 
         return tracks, start_time
 
-    async def disconnect_if_alone(self, player: discord.VoiceProtocol, delay: int = 2):
+    async def disconnect_player_if_alone_in_channel(self, player: discord.VoiceProtocol, delay: int = 2):
         """
-        removes a view from given guild and disconnects
+        After delay checks if player is alone in voice channel.
+        If so, removes guild's player view and disconnects
         """
         await asyncio.sleep(delay)
-        player: wavelink.Player = cast(wavelink.Player, player)
+        player: AudioPlayer = cast(AudioPlayer, player)
         if player.channel and player.connected and len(player.channel.members) == 1:
-            await self.__remove_view_and_disconnect(player)
+            await self.__remove_view_and_disconnect_player(player)
 
-    async def __remove_view_and_disconnect(self, player: wavelink.Player):
+    async def __remove_view_and_disconnect_player(self, player: AudioPlayer):
+        """
+        Removes view and disconnect player
+        """
         guild_id = player.guild.id
         await player.disconnect()
         if view := self.views.get(guild_id):
@@ -266,9 +250,11 @@ class AudioCog(commands.Cog):
         Used only to update embed when all tracks finished playing since we'd use
         on_wavelink_track_start otherwise
         """
-        player = payload.player
+        player = cast(AudioPlayer, payload.player)
         view = self.views.get(player.guild.id)
         # Due to relying on validation from Lavalink player.playing property may in some cases
         # return True directly after skipping/stopping a track, so we wait a bit
         await asyncio.sleep(0.1)
+        if len(player.queue) == 0 and not player.playing:
+            await player.disable_filters()
         await view.send_embed()

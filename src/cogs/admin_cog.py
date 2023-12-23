@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional, cast
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context, Greedy
-
-if TYPE_CHECKING:
-    from main import DiscordBot
+from discord_bot import DiscordBot
 
 
 class AdminCog(commands.Cog):
@@ -31,18 +29,19 @@ class AdminCog(commands.Cog):
             """
             This command sync slash commands with discord
             """
+            bot = cast(DiscordBot, ctx.bot)
             if not guilds:
                 if spec == "~":
-                    synced = await ctx.bot.tree.sync(guild=ctx.guild)
+                    synced = await bot.tree.sync(guild=ctx.guild)
                 elif spec == "*":
-                    ctx.bot.tree.copy_global_to(guild=ctx.guild)
-                    synced = await ctx.bot.tree.sync(guild=ctx.guild)
+                    bot.tree.copy_global_to(guild=ctx.guild)
+                    synced = await bot.tree.sync(guild=ctx.guild)
                 elif spec == "^":
-                    ctx.bot.tree.clear_commands(guild=ctx.guild)
-                    await ctx.bot.tree.sync(guild=ctx.guild)
+                    bot.tree.clear_commands(guild=ctx.guild)
+                    await bot.tree.sync(guild=ctx.guild)
                     synced = []
                 else:
-                    synced = await ctx.bot.tree.sync()
+                    synced = await bot.tree.sync()
 
                 is_spec = 'globally' if spec is None else 'to the current guild.'
                 await ctx.send(f"Synced {len(synced)} commands {is_spec}")
@@ -51,7 +50,7 @@ class AdminCog(commands.Cog):
             ret = 0
             for guild in guilds:
                 try:
-                    await ctx.bot.tree.sync(guild=guild)
+                    await bot.tree.sync(guild=guild)
                 except discord.HTTPException:
                     pass
                 else:

@@ -5,8 +5,8 @@ import datetime
 from typing import TYPE_CHECKING, cast
 
 import discord
-import wavelink
 from discord.ext import commands
+from audio_player import AudioPlayer
 
 from utils.decorators import (
     button_cooldown,
@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in current queue.'
 MAX_SELECT_LEN = 25
 
-
 class AudioPlayerView(discord.ui.View):
     """
     View class for controlling audio player through view
@@ -34,7 +33,6 @@ class AudioPlayerView(discord.ui.View):
         self.text_channel: discord.TextChannel = text_channel
         self.message_handle: discord.Message | None = None
         self.queue_page: int = 0
-        self.filters_applied = False
         self._cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=1, type=commands.BucketType.channel)
 
     def __del__(self):
@@ -72,23 +70,9 @@ class AudioPlayerView(discord.ui.View):
         """
         Play previous track.
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
-        queue = player.queue
-        history = player.queue.history
-
-        # If player is currently playing a track then last object in history is that track
-        # otherwise last object in history is a previous track
-        if player.playing:
-            current_track = history[-1]
-            previous_track = history[-2]
-            queue._queue.appendleft(current_track)
-            await history.delete(-1)
-        else:
-            previous_track = history[-1]
-
+        player = cast(AudioPlayer, interaction.guild.voice_client)
+        await player.play_previous_track()
         await interaction.response.defer()
-        await player.play(previous_track, add_history=False)
-        await self._update_embed()
 
     @discord.ui.button(label='❚❚ Pause', style=discord.ButtonStyle.blurple, row=0)
     @user_bot_in_same_channel_check
@@ -97,7 +81,7 @@ class AudioPlayerView(discord.ui.View):
         """
         Pause/resume the player on button press
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         await player.pause(not player.paused)
         await interaction.response.defer()
         await self._update_embed()
@@ -110,9 +94,9 @@ class AudioPlayerView(discord.ui.View):
         """
         Skip track on button press
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
-        await interaction.response.defer()
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         await player.skip()
+        await interaction.response.defer()
 
     @discord.ui.button(label='▮ Stop', style=discord.ButtonStyle.red, row=0)
     @user_bot_in_same_channel_check
@@ -122,11 +106,10 @@ class AudioPlayerView(discord.ui.View):
         """
         Stop track on button press
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         player.queue.clear()
         await player.skip()
-        await player.set_filters()
-        self.filters_applied = False
+        await player.disable_filters()
         await interaction.response.defer()
 
     @discord.ui.button(label='ඞ', style=discord.ButtonStyle.grey, row=0)
@@ -136,16 +119,8 @@ class AudioPlayerView(discord.ui.View):
         """
         Filter to toggle audio filters
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
-        if self.filters_applied:
-            await player.set_filters()
-        else:
-            filters: wavelink.Filters = wavelink.Filters()
-            filters.timescale.set(pitch=1.2, speed=1.1, rate=1)
-            filters.equalizer.reset()
-            await player.set_filters(filters)
-
-        self.filters_applied = not self.filters_applied
+        player = cast(AudioPlayer, interaction.guild.voice_client)
+        await player.toggle_nightcore_filter()
         await interaction.response.defer()
         await self._update_embed()
 
@@ -163,13 +138,14 @@ class AudioPlayerView(discord.ui.View):
         """
         Allows selecting song from the queue and playing it
         """
-        player = cast(wavelink.Player, interaction.guild.voice_client)
+        player = cast(AudioPlayer, interaction.guild.voice_client)
         index = int(select.values[0])
-        queue = player.queue.history if self.queue_page < 0 else player.queue
-        track = queue[index]
-        await queue.delete(index)
+        if self.queue_page > 0:
+            await player.play_track_from_queue(index)
+        else:
+            await player.play_track_from_history(index)
+
         await interaction.response.defer()
-        await player.play(track)
 
     @discord.ui.button(label='◀', style=discord.ButtonStyle.grey, row=2, disabled=True)
     @user_bot_in_same_channel_check
@@ -178,7 +154,7 @@ class AudioPlayerView(discord.ui.View):
         Loads previous page in the select window
         """
         self.queue_page -= 1
-        self._update_track_selection_buttons()
+        self._prepare_track_selection_list()
         await interaction.response.defer()
         await self._update_embed()
 
@@ -189,7 +165,7 @@ class AudioPlayerView(discord.ui.View):
         Loads next page in the select window
         """
         self.queue_page += 1
-        self._update_track_selection_buttons()
+        self._prepare_track_selection_list()
         await interaction.response.defer()
         await self._update_embed()
 
@@ -199,7 +175,7 @@ class AudioPlayerView(discord.ui.View):
         """
         # Calculate queue time length
         total_seconds = 0
-        player = cast(wavelink.Player, self.text_channel.guild.voice_client)
+        player = cast(AudioPlayer, self.text_channel.guild.voice_client)
         for i, track in enumerate(player.queue):
             total_seconds += track.length / 1000
         minutes = divmod(total_seconds, 60)[0]
@@ -249,11 +225,11 @@ class AudioPlayerView(discord.ui.View):
         if self.message_handle:
             await self.message_handle.edit(view=self, embed=embed)
 
-    def _update_track_selection_buttons(self):
+    def _prepare_track_selection_list(self):
         """
         calculates state of select window and related buttons
         """
-        player = cast(wavelink.Player, self.text_channel.guild.voice_client)
+        player = cast(AudioPlayer, self.text_channel.guild.voice_client)
         queue_len = len(player.queue)
         history_len = len(player.queue.history)
         max_pages = max(queue_len - 1, 0) // MAX_SELECT_LEN
@@ -303,13 +279,13 @@ class AudioPlayerView(discord.ui.View):
         dancing_black_man = discord.PartialEmoji.from_str('<a:dance:1142174154917941400>')
         amogus = 'ඞ'
 
-        player = cast(wavelink.Player, self.text_channel.guild.voice_client)
-        self.previous_button.disabled = not len(player.queue.history) > 0
+        player = cast(AudioPlayer, self.text_channel.guild.voice_client)
+        self.previous_button.disabled = not len(player.queue.history) > 1
         self.pause_button.label = '▶ Resume' if player.paused else '❚❚ Pause'
         self.pause_button.disabled = not player.playing
         self.skip_button.disabled = not player.playing
         self.stop_button.disabled = not player.playing
         self.filter_button.disabled = not player.playing
-        self.filter_button.label = amogus if not self.filters_applied else ''
-        self.filter_button.emoji = dancing_black_man if self.filters_applied else None
-        self._update_track_selection_buttons()
+        self.filter_button.label = amogus if not player.filters_applied else ''
+        self.filter_button.emoji = dancing_black_man if player.filters_applied else None
+        self._prepare_track_selection_list()

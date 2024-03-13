@@ -1,7 +1,7 @@
-
 import logging
 from exceptions.user_exceptions import SoundboardTrackNotFound
 from exceptions.wavelink_exceptions import UnexpectedPlayableType, YoutubeTrackNotFound
+
 
 class ExceptionHandler(Exception):
     def handle(self, err) -> str:

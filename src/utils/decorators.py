@@ -5,7 +5,6 @@ from typing import cast
 from audio_player import AudioPlayer
 
 import discord
-import wavelink
 
 
 def bot_is_in_voice_channel_check(func):

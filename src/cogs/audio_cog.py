@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from io import BytesIO
 import re
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import discord
 import wavelink
@@ -34,7 +34,6 @@ class AudioCog(commands.Cog):
         for view in self.views.values():
             if hasattr(view, '__del__'):
                 view.__del__()
-
 
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
@@ -73,7 +72,6 @@ class AudioCog(commands.Cog):
             message = self.exception_handler.handle(err)
             await interaction.edit_original_response(content=message)
 
-
     @commands.cooldown(rate=1, per=1)
     @commands.guild_only()
     @app_commands.command(name="skip")
@@ -99,9 +97,9 @@ class AudioCog(commands.Cog):
         """
         player = cast(AudioPlayer, interaction.guild.voice_client)
         if not player.connected:
-            await interaction.response.send_message(content='Bot is not connected to any voice channel',
-                                                    ephemeral=True,
-                                                    delete_after=3)
+            await interaction.response.send_message(
+                content='Bot is not connected to any voice channel', ephemeral=True, delete_after=3
+            )
             return
         await self.__remove_view_and_disconnect_player(player)
 
@@ -162,8 +160,9 @@ class AudioCog(commands.Cog):
         result = Endpoints.upload_audio(interaction.guild_id, mp3_file.filename, mp3_file_bytes)
         await interaction.edit_original_response(content=result)
 
-    async def __search_tracks(self, search_phrase: str, guild_id: str) \
-        -> tuple[wavelink.Playable | wavelink.Playlist, int]:
+    async def __search_tracks(
+        self, search_phrase: str, guild_id: str
+    ) -> tuple[wavelink.Playable | wavelink.Playlist, int]:
         """
         Decides which type of track should be used based on search phrase
         Args:

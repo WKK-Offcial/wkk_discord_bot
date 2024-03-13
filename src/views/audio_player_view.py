@@ -15,12 +15,12 @@ from utils.decorators import (
 )
 
 if TYPE_CHECKING:
-    from cogs.audio_cog import AudioCog
     from main import DiscordBot
 
 
 NOTHING_IN_QUEUE_PLACEHOLDER = 'Nothing in current queue.'
 MAX_SELECT_LEN = 25
+
 
 class AudioPlayerView(discord.ui.View):
     """
@@ -61,7 +61,6 @@ class AudioPlayerView(discord.ui.View):
         if self.message_handle:
             await self.message_handle.delete()
         self.message_handle = await self.text_channel.send(content=None, embed=embed, view=self)
-
 
     @discord.ui.button(label='◀◀ Prev', style=discord.ButtonStyle.blurple, row=0)
     @user_bot_in_same_channel_check
@@ -259,7 +258,7 @@ class AudioPlayerView(discord.ui.View):
             self.queue_select.placeholder = (
                 f'Displaying: {first_index}-{min(last_index,len(player.queue))} (current queue)'
             )
-        elif self.queue_page < 0:  ## display history queue
+        elif self.queue_page < 0:  # display history queue
             self.queue_select.options = [
                 discord.SelectOption(label=f'{index +1}.  {track.title}', value=str(history_len - 1 - index))
                 for index, track in enumerate(list(player.queue.history)[::-1])

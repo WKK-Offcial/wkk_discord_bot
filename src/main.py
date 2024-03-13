@@ -18,10 +18,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.FileHandler("info.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler("info.log"), logging.StreamHandler()],
 )
 # Load env variables from .env file
 load_dotenv()
@@ -34,6 +31,7 @@ elif os.name == 'posix':
     discord.opus.load_opus('libopus.so.0')
 if not discord.opus.is_loaded():
     raise RuntimeError('Opus failed to load!')
+
 
 class Bot:
     """

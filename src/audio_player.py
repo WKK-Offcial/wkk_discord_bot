@@ -8,9 +8,14 @@ class AudioPlayer(wavelink.Player):
     """
     Expands default wavelink player class functionality
     """
+
     def __init__(
-        self, client: discord.Client = MISSING, channel: Connectable = MISSING, *, nodes: list[wavelink.Node] | None = None
-        ):
+        self,
+        client: discord.Client = MISSING,
+        channel: Connectable = MISSING,
+        *,
+        nodes: list[wavelink.Node] | None = None
+    ):
         super().__init__(client=client, channel=channel, nodes=nodes)
         self._filters_applied = False
 

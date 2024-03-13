@@ -1,4 +1,3 @@
-
 class UserException(Exception):
     """
     Base Exception for all exceptions caused by user

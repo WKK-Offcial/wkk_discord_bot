@@ -276,7 +276,7 @@ class AudioPlayerView(discord.ui.View):
         """
         calculates state of view
         """
-        dancing_black_man = discord.PartialEmoji.from_str('<a:dance:1142174154917941400>')
+        dancing_black_man = discord.PartialEmoji.from_str('<a:catvibe:858756437705883648>')
         amogus = 'ඞ'
 
         player = cast(AudioPlayer, self.text_channel.guild.voice_client)

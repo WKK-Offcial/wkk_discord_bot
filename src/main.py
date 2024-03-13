@@ -14,7 +14,15 @@ from cogs.user_cog import UserCog
 from discord_bot import DiscordBot
 
 # Set up logger
-logging.basicConfig(level=logging.INFO, format="[%(module)s][%(funcName)s]: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("info.log"),
+        logging.StreamHandler()
+    ]
+)
 # Load env variables from .env file
 load_dotenv()
 # Load static ffmpeg library
@@ -91,6 +99,9 @@ def main():
     """
     Main function
     """
+    logging.info('Info log...')
+    logging.warning('Warning log..')
+    logging.error('error log..')
 
     bot = Bot()
     try:

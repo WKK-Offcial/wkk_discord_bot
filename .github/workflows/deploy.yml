@@ -73,49 +73,16 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ghcr.io/wkk-offcial/boi_redemption_arc:latest
+          tags: ghcr.io/wkk-offcial/boi_redemption_arc:latest,ghcr.io/wkk-offcial/boi_redemption_arc:${{ github.sha }}
 
-  deploy:
-    name: Deploy to EC2
-    needs: docker_build
+  trigger_deploy:
+    name: Trigger deployment pipeline
     runs-on: ubuntu-latest
+    needs: docker_build
     steps:
-    - name: Deploy Image on EC2
-      uses: appleboy/ssh-action@v0.1.8
-      env:
-        DISCORD_TOKEN: ${{ secrets.BOI_DISCORD_TOKEN }}
-        SERVER_IP: ${{ secrets.SERVER_IP }}
-        SERVER_PORT: ${{ secrets.SERVER_PORT }}
-        SERVER_ENDPOINT: ${{ secrets.SERVER_ENDPOINT }}
-        DOCKER_BOI_IMAGE: "ghcr.io/wkk-offcial/boi_redemption_arc:latest"
-        DOCKER_BOI_NAME: "wkk_boi"
-        WAVELINK_URL: ${{ secrets.WAVELINK_URL }}
-        WAVELINK_PORT: ${{ secrets.WAVELINK_PORT }}
-        WAVELINK_PASSWORD: ${{ secrets.WAVELINK_PASSWORD }}
-      with:
-        host: ${{secrets.BOI_HOSTNAME}}
-        username: opc
-        key: ${{secrets.BOI_PRIVATE_KEY}}
-        envs: DISCORD_TOKEN, SERVER_IP, SERVER_ENDPOINT, SERVER_PORT, DOCKER_BOI_IMAGE, DOCKER_BOI_NAME, WAVELINK_URL, WAVELINK_PORT, WAVELINK_PASSWORD
-        script_stop: true
-        script: |
-          if [[ -z "$(docker network ls | grep wkk-network)" ]]; then
-            docker network create wkk-network
-          fi
-          docker pull $DOCKER_BOI_IMAGE
-          docker stop $DOCKER_BOI_NAME && docker rm -fv $DOCKER_BOI_NAME || true
-          docker run --restart unless-stopped \
-          --detach \
-          --network="wkk-network" \
-          -e BOT_TOKEN=$DISCORD_TOKEN \
-          -e SERVER_IP=$SERVER_IP \
-          -e SERVER_PORT=$SERVER_PORT \
-          -e SERVER_ENDPOINT=$SERVER_ENDPOINT \
-          -e WAVELINK_URL=$WAVELINK_URL \
-          -e WAVELINK_PORT=$WAVELINK_PORT \
-          -e WAVELINK_PASSWORD=$WAVELINK_PASSWORD \
-          -v /home/opc/soundboards:/wkk-bot/cache/soundboards \
-          --name $DOCKER_BOI_NAME \
-          $DOCKER_BOI_IMAGE
-
-          docker image prune <<< y
+      - name: Trigger deployment pipeline
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DEPLOY_API_TOKEN }}
+          repository: wkk-offcial/bot_deployment
+          event-type: trigger-event

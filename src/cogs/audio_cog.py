@@ -214,9 +214,9 @@ class AudioCog(commands.Cog):
             search_result = await wavelink.Playable.search(safe_url)
         else:
             search_result = await wavelink.Playable.search(search_phrase)
-        
+
         tracks = search_result[0] if search_result else []
-        
+
         if not tracks:
             raise YoutubeTrackNotFound
 

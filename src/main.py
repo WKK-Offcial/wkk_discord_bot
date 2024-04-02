@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from cogs.audio_cog import AudioCog
 from cogs.admin_cog import AdminCog
 from cogs.user_cog import UserCog
+from cogs.badura_cog import BaduraCog
 from discord_bot import DiscordBot
 
 # Set up logger
@@ -50,6 +51,7 @@ class Bot:
         self.bot_admin = AdminCog(self.bot)
         self.audio = AudioCog(self.bot)
         self.users_related = UserCog(self.bot)
+        self.badura = BaduraCog(self.bot)
 
     def setup_events(self):
         """
@@ -82,6 +84,7 @@ class Bot:
             await self.bot.add_cog(self.bot_admin)
             await self.bot.add_cog(self.users_related)
             await self.bot.add_cog(self.audio)
+            await self.bot.add_cog(self.badura)
             await self.bot.start(os.getenv('BOT_TOKEN'))
 
 

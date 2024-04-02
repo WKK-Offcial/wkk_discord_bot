@@ -40,6 +40,6 @@ class BaduraCog(commands.Cog):
         last_rebuke_time = datetime.strptime(last_rebuke, "%Y-%m-%d %H:%M:%S")
         time_difference = datetime.now() - last_rebuke_time
         await interaction.response.send_message(
-            f"""Ostatnie wypomnienie było {time_difference.days} dni, {time_difference.seconds // 3600} 
+            f"""Ostatnie wypomnienie było {time_difference.days} dni, {time_difference.seconds // 3600}
             godzin i {time_difference.seconds % 3600 // 60} minut temu."""
         )

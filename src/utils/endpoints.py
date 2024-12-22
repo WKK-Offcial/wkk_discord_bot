@@ -3,49 +3,71 @@ from __future__ import annotations
 import base64
 import logging
 import os
+from typing import Optional
 
 import dotenv
 import requests
 
+# Load environment variables
 dotenv.load_dotenv()
-server = f"http://{os.getenv('SERVER_IP')}:{os.getenv('SERVER_PORT')}"
+
+SERVER_URL = f"http://{os.getenv('SERVER_IP')}:{os.getenv('SERVER_PORT')}"
+ENDPOINT = os.getenv('SERVER_ENDPOINT')
 
 
 class Endpoints:
     """
-    HTTP communication with audio server
+    Handles HTTP communication with the audio server.
     """
 
     @staticmethod
-    def get_soundboard(guild_id) -> list[str] | None:
+    def get_soundboard(guild_id: int) -> Optional[list[str]]:
         """
-        Returns list of sounds located on the server for giver id
+        Retrieves a list of sound files from the server for the given guild ID.
+
+        Args:
+            guild_id (int): The ID of the guild.
+
+        Returns:
+            Optional[list[str]]: A list of sound file names or None if the request fails.
         """
-        url = server + f"/{os.getenv('SERVER_ENDPOINT')}/{guild_id}"
-        response = requests.get(url=url, timeout=2)
-        if response.status_code != 200:
-            logging.warning("Server responded with code: %d", response.status_code)
-            return None
-        return response.json()["files"]
+        url = f"{SERVER_URL}/{ENDPOINT}/{guild_id}"
+        try:
+            response = requests.get(url=url, timeout=2)
+            if response.status_code == 200:
+                return response.json().get("files", [])
+            logging.warning("Server responded with status code: %d", response.status_code)
+        except requests.RequestException as e:
+            logging.error("Error fetching soundboard: %s", e)
+        return None
 
     @staticmethod
     def upload_audio(guild_id: int, file_name: str, file_data: bytes) -> str:
         """
-        Upload bytes data to server
+        Uploads audio data to the server.
+
+        Args:
+            guild_id (int): The ID of the guild.
+            file_name (str): The name of the file to upload.
+            file_data (bytes): The file data in bytes.
+
+        Returns:
+            str: A message indicating the result of the upload operation.
         """
-        b64_code = base64.b64encode(file_data)
+        url = f"{SERVER_URL}/{ENDPOINT}/{guild_id}"
+        b64_code = base64.b64encode(file_data).decode('utf-8')
         headers = {'Content-Type': 'application/json'}
-        mp3_json = {"file_name": file_name, "file_data": b64_code.decode('utf-8')}
-        url = server + f"/{os.getenv('SERVER_ENDPOINT')}/{guild_id}"
-        message = ''
+        payload = {"file_name": file_name, "file_data": b64_code}
+
         try:
-            response = requests.post(url=url, headers=headers, json=mp3_json, timeout=2)
+            response = requests.post(url=url, headers=headers, json=payload, timeout=2)
             if response.status_code == 200:
-                message = 'Upload successful!'
-            else:
-                message = f'Upload failed, server code:{response.status_code}'
-        except requests.exceptions.ConnectTimeout:
-            message = 'Upload failed, request timed out.'
-        except requests.exceptions.ReadTimeout:
-            message = 'Upload failed, request timed out.'
-        return message
+                return "Upload successful!"
+            return f"Upload failed, server responded with status code: {response.status_code}"
+        except requests.ConnectTimeout:
+            return "Upload failed, connection timed out."
+        except requests.ReadTimeout:
+            return "Upload failed, server took too long to respond."
+        except requests.RequestException as e:
+            logging.error("Error during file upload: %s", e)
+            return "Upload failed due to an unexpected error."

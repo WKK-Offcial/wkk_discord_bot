@@ -13,57 +13,73 @@ from discord_bot import DiscordBot
 
 class AdminCog(commands.Cog):
     """
-    Class used for administrative bot commands
+    Class used for administrative bot commands.
     """
 
     def __init__(self, bot: DiscordBot) -> None:
         super().__init__()
-        self.bot: DiscordBot = bot
+        self.bot = bot
 
-        # Implement meta functions
         @self.bot.command()
         @commands.guild_only()
         async def sync(
             ctx: Context, guilds: Greedy[discord.Object], spec: Optional[Literal["~", "*", "^"]] = None
         ) -> None:
             """
-            This command sync slash commands with discord
+            Syncs slash commands with Discord.
+
+            Parameters:
+                guilds (Greedy[discord.Object]): Guilds to sync the commands to.
+                spec (Literal["~", "*", "^"], optional): Syncing option:
+                    - "~": Sync only to the current guild.
+                    - "*": Copy global commands to the current guild.
+                    - "^": Clear commands from the current guild.
+                    - None: Sync globally.
             """
             bot = cast(DiscordBot, ctx.bot)
+
+            # Handle syncing based on spec and guilds
             if not guilds:
                 if spec == "~":
                     synced = await bot.tree.sync(guild=ctx.guild)
+                    location = "to the current guild"
                 elif spec == "*":
                     bot.tree.copy_global_to(guild=ctx.guild)
                     synced = await bot.tree.sync(guild=ctx.guild)
+                    location = "to the current guild (including global commands)"
                 elif spec == "^":
                     bot.tree.clear_commands(guild=ctx.guild)
                     await bot.tree.sync(guild=ctx.guild)
                     synced = []
+                    location = "after clearing commands from the current guild"
                 else:
                     synced = await bot.tree.sync()
+                    location = "globally"
 
-                is_spec = 'globally' if spec is None else 'to the current guild.'
-                await ctx.send(f"Synced {len(synced)} commands {is_spec}")
+                await ctx.send(f"Synced {len(synced)} commands {location}.")
                 return
 
-            ret = 0
+            # Sync to specific guilds
+            successful_syncs = 0
             for guild in guilds:
                 try:
                     await bot.tree.sync(guild=guild)
                 except discord.HTTPException:
-                    pass
+                    continue
                 else:
-                    ret += 1
+                    successful_syncs += 1
 
-            await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
+            await ctx.send(f"Synced the tree to {successful_syncs}/{len(guilds)} guilds.")
 
     @commands.guild_only()
     @app_commands.command(name="restart")
-    async def restart_bot(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
+    async def restart_bot(self, interaction: discord.Interaction) -> None:
         """
-        This command exits the program which should automatically reboot the container
+        Restarts the bot by exiting the program, which should trigger a container reboot.
+
+        Parameters:
+            interaction (discord.Interaction): The interaction triggering the command.
         """
         await interaction.response.send_message(content="BRB")
-        logging.warning('Restart called from %d', interaction.guild.id)
+        logging.warning("Restart called from guild: %d", interaction.guild.id)
         sys.exit()

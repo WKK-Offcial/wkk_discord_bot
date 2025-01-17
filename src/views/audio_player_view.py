@@ -40,6 +40,11 @@ class AudioPlayerView(discord.ui.View):
         self._setup_buttons()
         self._setup_queue_select()
 
+    def __del__(self):
+        if self.message_handle:
+            coro = self.message_handle.delete()
+            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+
     def _setup_buttons(self):
         """Initialize button layouts and styles"""
         # Row 0: Playback controls
@@ -81,26 +86,16 @@ class AudioPlayerView(discord.ui.View):
 
     async def cleanup(self):
         """Clean up resources and remove the view"""
-        if self.message_handle:
-            try:
-                await self.message_handle.delete()
-            except discord.NotFound:
-                pass
+        await self._delete_message_handle()
         self.stop()
         self.clear_items()
-
-    def __del__(self):
-        if self.message_handle:
-            coro = self.message_handle.delete()
-            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     async def send_embed(self):
         """Update the embed message with current player state"""
         embed = await self._create_embed()
         self._update_ui_state()
 
-        if self.message_handle:
-            await self.message_handle.delete()
+        await self._delete_message_handle()
         self.message_handle = await self.text_channel.send(embed=embed, view=self)
 
     def _format_duration(self, milliseconds: float) -> str:
@@ -233,6 +228,14 @@ class AudioPlayerView(discord.ui.View):
             for i, track in enumerate(history[start_idx:end_idx])
         ]
         self.queue_select.placeholder = f'Displaying: {start_idx + 1}-{min(end_idx, len(history))} (history queue)'
+
+    async def _delete_message_handle(self):
+        """Delete the message handle if it exists"""
+        if self.message_handle:
+            try:
+                await self.message_handle.delete()
+            except discord.NotFound:
+                pass
 
     # Button Callbacks
     @user_bot_in_same_channel_check

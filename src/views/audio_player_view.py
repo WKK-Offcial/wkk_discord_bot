@@ -84,7 +84,7 @@ class AudioPlayerView(discord.ui.View):
         self.add_item(button)
         return button
 
-    async def cleanup(self):
+    async def remove_view(self):
         """Clean up resources and remove the view"""
         await self._delete_message_handle()
         self.stop()
